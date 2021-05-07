@@ -30,7 +30,7 @@ People probably use this!
 
 ## Features of the extractor
 
-* Generate a list of prefixes sent via RTR (similar to Cloudflare JSON input, or RIPE RPKI Validator)
+* Generate a list of prefixes from a JSON file, sent those VRPs via RTR
 * Lightweight
 * TLS
 * SSH
@@ -58,11 +58,6 @@ $ go build cmd/stayrtr/stayrtr.go
 If you do not want to use Docker, please go to the next section.
 
 If you have **Docker**, you can start StayRTR with `docker run -ti -p 8082:8082 bgp/stayrtr` someday when it has been built.
-The containers contain Cloudflare's public signing key and an testing ECDSA private
-key for the SSH server.
-
-It will automatically download Cloudflare's (thanks Cloudflare!) prefix list and use the public key
-to validate it.
 
 You can now use any CLI attributes as long as they are after the image name:
 
@@ -96,8 +91,6 @@ Go can directly fetch it from the source
 ```bash
 $ go get github.com/bgp/stayrtr/cmd/stayrtr
 ```
-
-Copy `cf.pub` to your local directory if you want to use Cloudflare's signed JSON file.
 
 You can use the Makefile (by default it will be compiled for Linux, add `GOOS=darwin` for Mac)
 
@@ -288,17 +281,9 @@ Use your own validator, as long as the JSON source follows the following schema:
 }
 ```
 
-* [**Cloudflare**](https://rpki.cloudflare.com/rpki.json) *(list curated, signed, compressed and cached in +160 PoPs)*
 * **Third-party JSON formatted VRP exports:**
   * [NTT](https://rpki.gin.ntt.net/api/export.json) (based on OpenBSD's `rpki-client`)
-  * [RIPE](https://rpki-validator.ripe.net/api/export.json) (based on RIPE NCC's RPKI Cache Validator)
-
-To use a data source that do not contain signatures or validity information, pass:
-`-verify=false -checktime=false`
-
-**[Note: for boolean flags, it requires the equal sign](https://golang.org/pkg/flag/#hdr-Command_line_flag_syntax)**
-
-Cloudflare's prefix list removes duplicates and entries that are not routed on the Internet (>/24 IPv4 and >/48 IPv6).
+  * [console.rpki-client.org](https://console.rpki-client.org/vrps.json) (based on OpenBSD's `rpki-client`)
 
 By default, the session ID will be randomly generated. The serial will start at zero.
 
@@ -331,6 +316,7 @@ Implementations on versions may vary.
 | FRRouting       | Yes       | No  | Yes | Only SSH key      |
 | Bird2           | Yes       | No  | Yes | Only SSH key      |
 | Quagga          | Yes       | No  | No  |                   |
+| OpenBGPD        | Yes       | No  | No  |                   |
 
 ### Configure on Juniper
 
