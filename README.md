@@ -30,7 +30,7 @@ People probably use this!
 
 ## Features of the extractor
 
-* Generate a list of prefixes from a JSON file, sent those VRPs via RTR
+* Generate a list of prefixes received via RTR into a JSON file
 * Lightweight
 * TLS
 * SSH
