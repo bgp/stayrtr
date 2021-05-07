@@ -7,9 +7,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	rtr "github.com/cloudflare/gortr/lib"
-	"github.com/cloudflare/gortr/prefixfile"
-	"github.com/cloudflare/gortr/utils"
+	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/prefixfile"
+	"github.com/bgp/stayrtr/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -43,7 +43,7 @@ var (
 	MetricsPath = flag.String("metrics", "/metrics", "Metrics path")
 	OutFile     = flag.String("file", "diff.json", "Diff file (or URL path without /)")
 
-	UserAgent = flag.String("useragent", fmt.Sprintf("Cloudflare-%v (+https://github.com/cloudflare/gortr)", AppVersion), "User-Agent header")
+	UserAgent = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 
 	PrimaryHost            = flag.String("primary.host", "tcp://rtr.rpki.cloudflare.com:8282", "primary server")
 	PrimaryValidateCert    = flag.Bool("primary.tls.validate", true, "Validate TLS")

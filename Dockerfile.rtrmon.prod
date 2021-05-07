@@ -1,4 +1,4 @@
-ARG src_uri=github.com/cloudflare/gortr/cmd/rtrmon
+ARG src_uri=github.com/bgp/stayrtr/cmd/rtrmon
 
 FROM golang:alpine as builder
 ARG src_uri

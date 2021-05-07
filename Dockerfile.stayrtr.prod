@@ -1,4 +1,4 @@
-ARG src_uri=github.com/cloudflare/gortr/cmd/gortr
+ARG src_uri=github.com/bgp/stayrtr/cmd/stayrtr
 
 FROM golang:alpine as builder
 ARG src_uri
@@ -18,7 +18,7 @@ RUN apk --update --no-cache add ca-certificates && \
     adduser -S -D -H -h / rtr
 USER rtr
 
-COPY --from=builder /go/bin/gortr /
-COPY cmd/gortr/cf.pub /
+COPY --from=builder /go/bin/stayrtr /
+COPY cmd/stayrtr/cf.pub /
 COPY --from=keygen /private.pem /private.pem
-ENTRYPOINT ["./gortr"]
+ENTRYPOINT ["./stayrtr"]

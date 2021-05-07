@@ -4,8 +4,8 @@ services:
     build: package
     entrypoint: make
     command:
-      - build-gortr
-      - package-deb-gortr
-      - package-rpm-gortr
+      - build-stayrtr
+      - package-deb-stayrtr
+      - package-rpm-stayrtr
     volumes:
       - ./:/work/

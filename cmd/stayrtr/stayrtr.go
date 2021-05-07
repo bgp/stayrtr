@@ -12,9 +12,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	rtr "github.com/cloudflare/gortr/lib"
-	"github.com/cloudflare/gortr/prefixfile"
-	"github.com/cloudflare/gortr/utils"
+	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/prefixfile"
+	"github.com/bgp/stayrtr/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	ENV_SSH_PASSWORD = "GORTR_SSH_PASSWORD"
-	ENV_SSH_KEY      = "GORTR_SSH_AUTHORIZEDKEYS"
+	ENV_SSH_PASSWORD = "STAYRTR_SSH_PASSWORD"
+	ENV_SSH_KEY      = "STAYRTR_SSH_AUTHORIZEDKEYS"
 
 	METHOD_NONE = iota
 	METHOD_PASSWORD
@@ -46,7 +46,7 @@ const (
 var (
 	version    = ""
 	buildinfos = ""
-	AppVersion = "GoRTR " + version + " " + buildinfos
+	AppVersion = "StayRTR " + version + " " + buildinfos
 
 	MetricsAddr = flag.String("metrics.addr", ":8080", "Metrics address")
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
@@ -85,7 +85,7 @@ var (
 	UseSerial = flag.String("useserial", "disable", "Use serial contained in file (disable, startup, full)")
 
 	Etag            = flag.Bool("etag", true, "Enable Etag header")
-	UserAgent       = flag.String("useragent", fmt.Sprintf("Cloudflare-%v (+https://github.com/cloudflare/gortr)", AppVersion), "User-Agent header")
+	UserAgent       = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	Mime            = flag.String("mime", "application/json", "Accept setting format (some servers may prefer text/json)")
 	RefreshInterval = flag.Int("refresh", 600, "Refresh interval in seconds")
 	MaxConn         = flag.Int("maxconn", 0, "Max simultaneous connections (0 to disable limit)")
@@ -661,7 +661,7 @@ func main() {
 	if *Bind != "" {
 		go func() {
 			sessid, _ := server.GetSessionId(nil)
-			log.Infof("GoRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
+			log.Infof("StayRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
 			err := server.Start(*Bind)
 			if err != nil {
 				log.Fatal(err)

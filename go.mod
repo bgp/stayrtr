@@ -1,4 +1,4 @@
-module github.com/cloudflare/gortr
+module github.com/bgp/stayrtr
 
 go 1.12
 

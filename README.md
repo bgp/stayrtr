@@ -1,14 +1,13 @@
-# GoRTR
+# StayRTR
 
-[![Build Status](https://github.com/cloudflare/gortr/workflows/Go/badge.svg)](https://github.com/cloudflare/gortr/actions?query=workflow%3AGo)
-[![GoDoc](https://godoc.org/github.com/cloudflare/gortr?status.svg)](https://pkg.go.dev/github.com/cloudflare/gortr)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/cloudflare/gortr)
 
-GoRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) using the [the Go Programming Language](http://golang.org/).
+StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) based on StayRTR using the [the Go Programming Language](http://golang.org/).
+
+This project is not affiliated with Cloudflare and any references to Cloudflare are simply a function of forking. We do love the Cloudyflares though!
 
 * `/lib` contains a library to create your own server and client.
 * `/prefixfile` contains the structure of a JSON export file and signing capabilities.
-* `/cmd/gortr/gortr.go` is a simple implementation that fetches a list and offers it to a router.
+* `/cmd/stayrtr/stayrtr.go` is a simple implementation that fetches a list and offers it to a router.
 * `/cmd/rtrdump/rtrdump.go` allows copying the PDUs sent by a RTR server as a JSON file.
 * `/cmd/rtrmon/rtrmon.go` compare and monitor two RTR servers (using RTR and/or JSON), outputs diff and Prometheus metrics.
 
@@ -18,50 +17,11 @@ _This software comes with no warranty._
 
 ## In the field
 
-<img align="left" src="docs/images/cloudflare.png" alt="Cloudflare" width="200px">
-
-_Cloudflare operates 200+ GoRTR globally. They provide redundancy in at the PoP level.
-This provides increased reliability by computing a unique prefix list and providing
-a secure distribution of the file over its CDN before being sent to the routers._
-
-_GoRTR also powers the public RTR server available on rtr.rpki.cloudflare.com on port 8282 and 8283 for SSH (rpki/rpki)_
-
-<br>
-
-<img align="left" src="docs/images/telia.png" alt="Telia" width="200px">
-
-_Telia has deployed RPKI and uses GoRTR connected with OctoRPKI and rpki-client to distribute the ROAs to its routers.
-Instances of the RTR servers handle around 250 sessions each._
-
-<br>
-
-<img align="left" src="docs/images/ntt.png" alt="NTT" width="150px">
-
-_NTT has deployed OpenBSD's rpki-client together with GoRTR to facilitate rejecting RPKI Invalid BGP route announcements
-towards it's Global IP Network (AS 2914). More information is available [here](https://www.us.ntt.net/support/policy/rr.cfm#RPKI)._
-
-<br>
-
-<img align="left" src="docs/images/gtt.png" alt="GTT" width="100px">
-
-_GTT deployed GoRTR along with OctoRPKI. The setup currently provides 400+ RTR sessions to their routers for filtering
-RPKI invalids._
-
-<br>
-
-<img align="left" src="docs/images/cogent.png" alt="Cogent" width="150px">
-
-_Cogent deployed GoRTR and OctoRPKI at the end of May 2020. 8 validators feed approximately 2500 routers._
-
-<br>
-
-Router vendors also used this software to develop their implementations.
-
-_Do you use this tool at scale? Let us know!_
+People probably use this!
 
 ## Features of the server
 
-* Refreshes a JSON list of prefixes (from either Cloudflare or a RIPE Validator)
+* Refreshes a JSON list of prefixes
 * Prometheus metrics
 * Lightweight
 * TLS
@@ -89,42 +49,42 @@ You need a working [Go environment](https://golang.org/doc/install) (1.10 or new
 This project also uses [Go Modules](https://github.com/golang/go/wiki/Modules).
 
 ```bash
-$ git clone git@github.com:cloudflare/gortr.git && cd gortr
-$ go build cmd/gortr/gortr.go
+$ git clone git@github.com:bgp/stayrtr.git && cd stayrtr
+$ go build cmd/stayrtr/stayrtr.go
 ```
 
 ## With Docker
 
 If you do not want to use Docker, please go to the next section.
 
-If you have **Docker**, you can start GoRTR with `docker run -ti -p 8082:8082 cloudflare/gortr`.
+If you have **Docker**, you can start StayRTR with `docker run -ti -p 8082:8082 bgp/stayrtr` someday when it has been built.
 The containers contain Cloudflare's public signing key and an testing ECDSA private
 key for the SSH server.
 
-It will automatically download Cloudflare's prefix list and use the public key
+It will automatically download Cloudflare's (thanks Cloudflare!) prefix list and use the public key
 to validate it.
 
 You can now use any CLI attributes as long as they are after the image name:
 
 ```bash
-$ docker run -ti -p 8083:8083 cloudflare/gortr -bind :8083
+$ docker run -ti -p 8083:8083 bgp/stayrtr -bind :8083
 ```
 
-If you want to build your own image of GoRTR:
+If you want to build your own image of StayRTR:
 
 ```bash
-$ docker build -t mygortr -f Dockerfile.gortr.prod .
-$ docker run -ti mygortr -h
+$ docker build -t mystayrtr -f Dockerfile.stayrtr.prod .
+$ docker run -ti mystayrtr -h
 ```
 
 It will download the code from GitHub and compile it with Go and also generate an ECDSA key for SSH.
 
-Please note: if you plan to use SSH with Cloudflare's default container (`cloudflare/gortr`),
+Please note: if you plan to use SSH with the default container (`bgp/stayrtr`),
 replace the key `private.pem` since it is a testing key that has been published.
 An example is given below:
 
 ```bash
-$ docker run -ti -v $PWD/mynewkey.pem:/private.pem cloudflare/gortr -ssh.bind :8083
+$ docker run -ti -v $PWD/mynewkey.pem:/private.pem bgp/stayrtr -ssh.bind :8083
 ```
 
 ## Install it
@@ -134,7 +94,7 @@ There are a few solutions to install it.
 Go can directly fetch it from the source
 
 ```bash
-$ go get github.com/cloudflare/gortr/cmd/gortr
+$ go get github.com/bgp/stayrtr/cmd/stayrtr
 ```
 
 Copy `cf.pub` to your local directory if you want to use Cloudflare's signed JSON file.
@@ -142,22 +102,22 @@ Copy `cf.pub` to your local directory if you want to use Cloudflare's signed JSO
 You can use the Makefile (by default it will be compiled for Linux, add `GOOS=darwin` for Mac)
 
 ```bash
-$ make dist-key build-gortr
+$ make dist-key build-stayrtr
 ```
 
 The compiled file will be in `/dist`.
 
-Or you can use a package (or binary) file from the [Releases page](https://github.com/cloudflare/gortr/releases):
+Or you can use a package (or binary) file from the [Releases page](https://github.com/bgp/stayrtr/releases):
 
 ```bash
-$ sudo dpkg -i gortr[...].deb
-$ sudo systemctl start gortr
+$ sudo dpkg -i stayrtr[...].deb
+$ sudo systemctl start stayrtr
 ```
 
 If you want to sign your list of prefixes, generate an ECDSA key.
-Then generate the public key to be used in GoRTR.
+Then generate the public key to be used in StayRTR.
 You will have to setup your validator to use this key or have another
-tool to sign the JSON file before passing it to GoRTR.
+tool to sign the JSON file before passing it to StayRTR.
 
 ```bash
 $ openssl ecparam -genkey -name prime256v1 -noout -outform pem > private.pem
@@ -169,7 +129,7 @@ $ openssl ec -in private.pem -pubout -outform pem > public.pem
 Once you have a binary:
 
 ```bash
-$ ./gortr -tls.bind 127.0.0.1:8282
+$ ./stayrtr -tls.bind 127.0.0.1:8282
 ```
 
 Make sure cf.pub is in the current directory. Or pass `-verify.key=path/to/cf.pub`
@@ -189,7 +149,7 @@ You can find both files in the `dist/` directory.
 This was tested with a basic Squid proxy. The `User-Agent` header is passed
 in the CONNECT.
 
-You have to export the following two variables in order for GoRTR to use the proxy.
+You have to export the following two variables in order for StayRTR to use the proxy.
 
 ```
 export HTTP_PROXY=schema://host:port
@@ -198,7 +158,7 @@ export HTTPS_PROXY=schema://host:port
 
 ### With SSL
 
-You can run GoRTR and listen for TLS connections only (just pass `-bind ""`).
+You can run StayRTR and listen for TLS connections only (just pass `-bind ""`).
 
 First, you will have to create a SSL certificate.
 
@@ -210,12 +170,12 @@ $ openssl req -new -x509 -key private.pem -out server.pem
 Then, you have to run
 
 ```bash
-$ ./gortr -ssh.bind :8282 -tls.key private.pem -tls.cert server.pem
+$ ./stayrtr -ssh.bind :8282 -tls.key private.pem -tls.cert server.pem
 ```
 
 ### With SSH
 
-You can run GoRTR and listen for SSH connections only (just pass `-bind ""`).
+You can run StayRTR and listen for SSH connections only (just pass `-bind ""`).
 
 You will have to create an ECDSA key. You can use the following command:
 
@@ -226,7 +186,7 @@ $ openssl ecparam -genkey -name prime256v1 -noout -outform pem > private.pem
 Then you can start:
 
 ```bash
-$ ./gortr -ssh.bind :8282 -ssh.key private.pem -bind ""
+$ ./stayrtr -ssh.bind :8282 -ssh.key private.pem -bind ""
 ```
 
 By default, there is no authentication.
@@ -236,18 +196,18 @@ You can use password and key authentication:
 For example, to configure user **rpki** and password **rpki**:
 
 ```bash
-$ ./gortr -ssh.bind :8282 -ssh.key private.pem -ssh.method.password=true -ssh.auth.user rpki -ssh.auth.password rpki -bind ""
+$ ./stayrtr -ssh.bind :8282 -ssh.key private.pem -ssh.method.password=true -ssh.auth.user rpki -ssh.auth.password rpki -bind ""
 ```
 
 And to configure a bypass for every SSH key:
 
 ```bash
-$ ./gortr -ssh.bind :8282 -ssh.key private.pem -ssh.method.key=true -ssh.auth.key.bypass=true -bind ""
+$ ./stayrtr -ssh.bind :8282 -ssh.key private.pem -ssh.method.key=true -ssh.auth.key.bypass=true -bind ""
 ```
 
 ## Configure filters and overrides (SLURM)
 
-GoRTR supports SLURM configuration files ([RFC8416](https://tools.ietf.org/html/rfc8416)).
+StayRTR supports SLURM configuration files ([RFC8416](https://tools.ietf.org/html/rfc8416)).
 
 Create a json file (`slurm.json`):
 
@@ -285,7 +245,7 @@ Create a json file (`slurm.json`):
   }
 ```
 
-When starting GoRTR, add the `-slurm ./slurm.json` argument.
+When starting StayRTR, add the `-slurm ./slurm.json` argument.
 
 The log should display something similar to the following:
 
@@ -297,9 +257,9 @@ INFO[0002] New update (112215 uniques, 112215 total prefixes).
 For instance, if the original JSON fetched contains the ROA: `10.0.0.0/24-24 AS65001`,
 it will be removed.
 
-The JSON exported by GoRTR will contain the overrides and the file can be signed again.
-Others GoRTR can be configured to fetch the ROAs from the filtering GoRTR:
-the operator manages one SLURM file on a leader GoRTR.
+The JSON exported by StayRTR will contain the overrides and the file can be signed again.
+Others StayRTR can be configured to fetch the ROAs from the filtering StayRTR:
+the operator manages one SLURM file on a leader StayRTR.
 
 ## Debug the content
 
@@ -348,9 +308,9 @@ You can define a serial to start with the following way:
 * the flag `-useserial` must be set to 1 or 2
 
 When flag is set to 1, every change of file will increment the serial regardless of the current `serial` field.
-Make sure the refresh rate of GoRTR is more frequent than the refresh rate of the JSON.
+Make sure the refresh rate of StayRTR is more frequent than the refresh rate of the JSON.
 
-When flag is set to 2, GoRTR will set the value of the serial in the JSON. If an ID is missed or not updated,
+When flag is set to 2, StayRTR will set the value of the serial in the JSON. If an ID is missed or not updated,
 it will cause discrepancies on the client.
 
 ## Configurations

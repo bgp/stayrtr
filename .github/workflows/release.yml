@@ -24,9 +24,9 @@ jobs:
     - name: Build
       run: |
         make dist-key
-        GOOS=linux make build-gortr
-        GOOS=darwin make build-gortr
-        GOOS=windows EXTENSION=.exe make build-gortr
+        GOOS=linux make build-stayrtr
+        GOOS=darwin make build-stayrtr
+        GOOS=windows EXTENSION=.exe make build-stayrtr
         GOOS=linux make build-rtrdump
         GOOS=darwin make build-rtrdump
         GOOS=windows EXTENSION=.exe make build-rtrdump
@@ -41,7 +41,7 @@ jobs:
         sudo gem install fpm
         
     - name: Package
-      run: make package-deb-gortr package-rpm-gortr
+      run: make package-deb-stayrtr package-rpm-stayrtr
 
     - name: Create Release
       id: create_release

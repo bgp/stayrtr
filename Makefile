@@ -4,32 +4,32 @@ GOOS ?= linux
 ARCH ?= $(shell uname -m)
 BUILDINFOSDET ?= 
 
-DOCKER_REPO   := cloudflare/
-GORTR_NAME    := gortr
-GORTR_VERSION := $(shell git describe --tags $(git rev-list --tags --max-count=1))
-VERSION_PKG   := $(shell echo $(GORTR_VERSION) | sed 's/^v//g')
+DOCKER_REPO   := bgp/
+STAYRTR_NAME    := stayrtr
+STAYRTR_VERSION := $(shell git describe --tags $(git rev-list --tags --max-count=1))
+VERSION_PKG   := $(shell echo $(STAYRTR_VERSION) | sed 's/^v//g')
 ARCH          := x86_64
 LICENSE       := BSD-3
-URL           := https://github.com/cloudflare/gortr
-DESCRIPTION   := GoRTR: a RPKI-to-Router server
+URL           := https://github.com/bgp/stayrtr
+DESCRIPTION   := StayRTR: a RPKI-to-Router server
 BUILDINFOS    :=  ($(shell date +%FT%T%z)$(BUILDINFOSDET))
-LDFLAGS       := '-X main.version=$(GORTR_VERSION) -X main.buildinfos=$(BUILDINFOS)'
+LDFLAGS       := '-X main.version=$(STAYRTR_VERSION) -X main.buildinfos=$(BUILDINFOS)'
 
 RTRDUMP_NAME  := rtrdump
 RTRMON_NAME   := rtrmon
 
-OUTPUT_GORTR := $(DIST_DIR)gortr-$(GORTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
-OUTPUT_RTRDUMP := $(DIST_DIR)rtrdump-$(GORTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
-OUTPUT_RTRMON := $(DIST_DIR)rtrmon-$(GORTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
+OUTPUT_STAYRTR := $(DIST_DIR)stayrtr-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
+OUTPUT_RTRDUMP := $(DIST_DIR)rtrdump-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
+OUTPUT_RTRMON := $(DIST_DIR)rtrmon-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
 
 .PHONY: vet
 vet:
-	go vet cmd/gortr/gortr.go
+	go vet cmd/stayrtr/stayrtr.go
 
 .PHONY: test
 test:
-	go test -v github.com/cloudflare/gortr/lib
-	go test -v github.com/cloudflare/gortr/prefixfile
+	go test -v github.com/bgp/stayrtr/lib
+	go test -v github.com/bgp/stayrtr/prefixfile
 
 .PHONY: prepare
 prepare:
@@ -41,11 +41,11 @@ clean:
 
 .PHONY: dist-key
 dist-key: prepare
-	cp cmd/gortr/cf.pub $(DIST_DIR)
+	cp cmd/stayrtr/cf.pub $(DIST_DIR)
 
-.PHONY: build-gortr
-build-gortr: prepare
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_GORTR) cmd/gortr/gortr.go 
+.PHONY: build-stayrtr
+build-stayrtr: prepare
+	go build -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go 
 
 .PHONY: build-rtrdump
 build-rtrdump:
@@ -55,44 +55,44 @@ build-rtrdump:
 build-rtrmon:
 	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRMON) cmd/rtrmon/rtrmon.go 
 
-.PHONY: docker-gortr
-docker-gortr:
-	docker build -t $(DOCKER_REPO)$(GORTR_NAME):$(GORTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.gortr .
+.PHONY: docker-stayrtr
+docker-stayrtr:
+	docker build -t $(DOCKER_REPO)$(STAYRTR_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.stayrtr .
 
 .PHONY: docker-rtrdump
 docker-rtrdump:
-	docker build -t $(DOCKER_REPO)$(RTRDUMP_NAME):$(GORTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrdump .
+	docker build -t $(DOCKER_REPO)$(RTRDUMP_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrdump .
 
 .PHONY: docker-rtrmon
 docker-rtrmon:
-	docker build -t $(DOCKER_REPO)$(RTRMON_NAME):$(GORTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrmon .
+	docker build -t $(DOCKER_REPO)$(RTRMON_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrmon .
 
-.PHONY: package-deb-gortr
-package-deb-gortr: prepare
-	fpm -s dir -t deb -n $(GORTR_NAME) -v $(VERSION_PKG) \
+.PHONY: package-deb-stayrtr
+package-deb-stayrtr: prepare
+	fpm -s dir -t deb -n $(STAYRTR_NAME) -v $(VERSION_PKG) \
         --description "$(DESCRIPTION)"  \
         --url "$(URL)" \
         --architecture $(ARCH) \
         --license "$(LICENSE)" \
         --package $(DIST_DIR) \
-        $(OUTPUT_GORTR)=/usr/bin/gortr \
-        package/gortr.service=/lib/systemd/system/gortr.service \
-        package/gortr.env=/etc/default/gortr \
-        cmd/gortr/cf.pub=/usr/share/gortr/cf.pub \
+        $(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
+        package/stayrtr.service=/lib/systemd/system/stayrtr.service \
+        package/stayrtr.env=/etc/default/stayrtr \
+        cmd/stayrtr/cf.pub=/usr/share/stayrtr/cf.pub \
         $(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
         $(OUTPUT_RTRMON)=/usr/bin/rtrmon
 
-.PHONY: package-rpm-gortr
-package-rpm-gortr: prepare
-	fpm -s dir -t rpm -n $(GORTR_NAME) -v $(VERSION_PKG) \
+.PHONY: package-rpm-stayrtr
+package-rpm-stayrtr: prepare
+	fpm -s dir -t rpm -n $(STAYRTR_NAME) -v $(VERSION_PKG) \
 	--description "$(DESCRIPTION)" \
 	--url "$(URL)" \
 	--architecture $(ARCH) \
 	--license "$(LICENSE) "\
 	--package $(DIST_DIR) \
-	$(OUTPUT_GORTR)=/usr/bin/gortr \
-	package/gortr.service=/lib/systemd/system/gortr.service \
-	package/gortr.env=/etc/default/gortr \
-	cmd/gortr/cf.pub=/usr/share/gortr/cf.pub \
+	$(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
+	package/stayrtr.service=/lib/systemd/system/stayrtr.service \
+	package/stayrtr.env=/etc/default/stayrtr \
+	cmd/stayrtr/cf.pub=/usr/share/stayrtr/cf.pub \
 	$(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
 	$(OUTPUT_RTRMON)=/usr/bin/rtrmon

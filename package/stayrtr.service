@@ -1,0 +1,12 @@
+[Unit]
+Description=StayRTR
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/stayrtr
+WorkingDirectory=/usr/share/stayrtr
+ExecStart=/usr/bin/stayrtr $STAYRTR_ARGS
+
+[Install]
+WantedBy=multi-user.target
