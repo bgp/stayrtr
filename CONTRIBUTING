@@ -1,0 +1,24 @@
+Stuff is addressed as follows:
+
+-PRs with details
+ The less code that has to be read to understand, the easier it is to review.
+
+-Issues with debugging detail
+ Debugging detail is how stuff is troubleshot.
+
+-PRs that are complicated and not explained well
+ Brain may not be able to process immediately. Will get back.
+
+-Issues with minimal detail but somewhat obvious
+ Cool, but this requires work.
+
+Things that will not be looked at, and instantly closed:
+
+-Typo fixes that are not project impacting somehow. Speling doent mater muhc.
+-Issues with no details and no troubleshooting attempted
+
+Prohibited conduct in issues/PRs:
+
+-Being rude or obnoxious
+-The usual list that other CoCs care about mostly
+-Being annoying with useless commentary
