@@ -10,7 +10,6 @@ services:
       - -slurm
       - slurm.json
       - -verify=false
-      - -checktime=false
     volumes:
       - ./cmd/stayrtr/test.rpki.json:/rpki.json
       - ./cmd/stayrtr/test.slurm.json:/slurm.json

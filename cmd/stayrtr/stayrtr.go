@@ -77,7 +77,6 @@ var (
 	SSHAuthKeysBypass = flag.Bool("ssh.auth.key.bypass", false, "Accept any SSH key")
 	SSHAuthKeysList   = flag.String("ssh.auth.key.file", "", fmt.Sprintf("Authorized SSH key file (if blank, will use envvar %v", ENV_SSH_KEY))
 
-	TimeCheck = flag.Bool("checktime", true, "Check if file is still valid")
 	Verify    = flag.Bool("verify", true, "Check signature using provided public key (disable by passing -verify=false)")
 	PublicKey = flag.String("verify.key", "cf.pub", "Public key path (PEM file)")
 
@@ -279,12 +278,11 @@ func (s *state) updateFile(file string) error {
 		}
 	}
 
-	if s.checktime {
-		validtime := time.Unix(int64(vrplistjson.Metadata.Valid), 0).UTC()
-		if time.Now().UTC().After(validtime) {
-			return errors.New(fmt.Sprintf("File is expired: %v", validtime))
-		}
+	validtime, err := time.Parse(time.RFC3339, vrplistjson.Metadata.BuildTime)
+	if time.Now().UTC().After(validtime.AddDate(0,0,1)) {
+		return errors.New(fmt.Sprintf("File is expired: %v", validtime))
 	}
+
 	if s.verify {
 		log.Debugf("Verifying signature in %v", file)
 		if vrplistjson.Metadata.SignatureDate == "" || vrplistjson.Metadata.Signature == "" {
@@ -581,7 +579,6 @@ func main() {
 		sendNotifs:   *SendNotifs,
 		pubkey:       pubkey,
 		verify:       *Verify,
-		checktime:    *TimeCheck,
 		lockJson:     &sync.RWMutex{},
 
 		fetchConfig: utils.NewFetchConfig(),

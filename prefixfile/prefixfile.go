@@ -91,6 +91,7 @@ type MetaData struct {
 	Signature     string `json:"signature,omitempty"`
 	SignatureDate string `json:"signatureDate,omitempty"`
 	Serial        int    `json:"serial,omitempty"`
+	BuildTime     string `json:"buildtime"`
 }
 
 type VRPList struct {
