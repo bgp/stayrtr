@@ -1,7 +1,7 @@
 # StayRTR
 
 
-StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) based on StayRTR using the [the Go Programming Language](http://golang.org/).
+StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) based on GoRTR using the [the Go Programming Language](http://golang.org/). The maintainer of GoRTR got a new job, so we decided to hard fork.
 
 This project is not affiliated with Cloudflare and any references to Cloudflare are simply a function of forking. We do love the Cloudyflares though!
 
