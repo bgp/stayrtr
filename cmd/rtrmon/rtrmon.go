@@ -81,10 +81,10 @@ var (
 		"key":      METHOD_KEY,
 	}
 
-	ROACount = prometheus.NewGaugeVec(
+	VRPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "rpki_roas",
-			Help: "Total number of ROAS/amount of differents.",
+			Name: "rpki_vrps",
+			Help: "Total number of VRPS/amount of differents.",
 		},
 		[]string{"server", "url", "type"},
 	)
@@ -125,20 +125,20 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(ROACount)
+	prometheus.MustRegister(VRPCount)
 	prometheus.MustRegister(RTRState)
 	prometheus.MustRegister(RTRSerial)
 	prometheus.MustRegister(RTRSession)
 	prometheus.MustRegister(LastUpdate)
 }
 
-func decodeJSON(data []byte) (*prefixfile.ROAList, error) {
+func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	buf := bytes.NewBuffer(data)
 	dec := json.NewDecoder(buf)
 
-	var roalistjson prefixfile.ROAList
-	err := dec.Decode(&roalistjson)
-	return &roalistjson, err
+	var vrplistjson prefixfile.VRPList
+	err := dec.Decode(&vrplistjson)
+	return &vrplistjson, err
 }
 
 type Client struct {
@@ -164,9 +164,9 @@ type Client struct {
 	lastUpdate time.Time
 
 	compLock    *sync.RWMutex
-	roas        map[string]*ROAJsonSimple
+	vrps        map[string]*VRPJsonSimple
 	compRtrLock *sync.RWMutex
-	roasRtr     map[string]*ROAJsonSimple
+	vrpsRtr     map[string]*VRPJsonSimple
 
 	unlock chan bool
 	ch     chan int
@@ -180,9 +180,9 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		compLock:    &sync.RWMutex{},
-		roas:        make(map[string]*ROAJsonSimple),
+		vrps:        make(map[string]*VRPJsonSimple),
 		compRtrLock: &sync.RWMutex{},
-		roasRtr:     make(map[string]*ROAJsonSimple),
+		vrpsRtr:     make(map[string]*VRPJsonSimple),
 	}
 }
 
@@ -278,31 +278,31 @@ func (c *Client) Start(id int, ch chan int) {
 
 			c.lastUpdate = time.Now().UTC()
 
-			tmpRoaMap := make(map[string]*ROAJsonSimple)
-			for _, roa := range decoded.Data {
-				asn, err := roa.GetASN2()
+			tmpVrpMap := make(map[string]*VRPJsonSimple)
+			for _, vrp := range decoded.Data {
+				asn, err := vrp.GetASN2()
 				if err != nil {
-					log.Errorf("%d: exploration error for %v asn: %v", id, roa, err)
+					log.Errorf("%d: exploration error for %v asn: %v", id, vrp, err)
 					continue
 				}
-				prefix, err := roa.GetPrefix2()
+				prefix, err := vrp.GetPrefix2()
 				if err != nil {
-					log.Errorf("%d: exploration error for %v prefix: %v", id, roa, err)
+					log.Errorf("%d: exploration error for %v prefix: %v", id, vrp, err)
 					continue
 				}
 
-				maxlen := roa.GetMaxLen()
+				maxlen := vrp.GetMaxLen()
 				key := fmt.Sprintf("%s-%d-%d", prefix.String(), maxlen, asn)
 
-				roaSimple := ROAJsonSimple{
+				vrpSimple := VRPJsonSimple{
 					Prefix: prefix.String(),
 					ASN:    asn,
 					Length: uint8(maxlen),
 				}
-				tmpRoaMap[key] = &roaSimple
+				tmpVrpMap[key] = &vrpSimple
 			}
 			c.compLock.Lock()
-			c.roas = tmpRoaMap
+			c.vrps = tmpVrpMap
 			c.lastUpdate = time.Now().UTC()
 			c.serial = uint32(decoded.Metadata.Serial)
 			c.compLock.Unlock()
@@ -318,7 +318,7 @@ func (c *Client) Start(id int, ch chan int) {
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 	switch pdu := pdu.(type) {
 	case *rtr.PDUIPv4Prefix:
-		roa := ROAJsonSimple{
+		vrp := VRPJsonSimple{
 			Prefix: pdu.Prefix.String(),
 			ASN:    pdu.ASN,
 			Length: pdu.MaxLen,
@@ -328,14 +328,14 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 		c.compRtrLock.Lock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
-			c.roasRtr[key] = &roa
+			c.vrpsRtr[key] = &vrp
 		} else {
-			delete(c.roasRtr, key)
+			delete(c.vrpsRtr, key)
 		}
 
 		c.compRtrLock.Unlock()
 	case *rtr.PDUIPv6Prefix:
-		roa := ROAJsonSimple{
+		vrp := VRPJsonSimple{
 			Prefix: pdu.Prefix.String(),
 			ASN:    pdu.ASN,
 			Length: pdu.MaxLen,
@@ -345,9 +345,9 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 		c.compRtrLock.Lock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
-			c.roasRtr[key] = &roa
+			c.vrpsRtr[key] = &vrp
 		} else {
-			delete(c.roasRtr, key)
+			delete(c.vrpsRtr, key)
 		}
 
 		c.compRtrLock.Unlock()
@@ -356,14 +356,14 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		c.compRtrLock.Lock()
 		c.serial = pdu.SerialNumber
-		tmpRoaMap := make(map[string]*ROAJsonSimple, len(c.roasRtr))
-		for key, roa := range c.roasRtr {
-			tmpRoaMap[key] = roa
+		tmpVrpMap := make(map[string]*VRPJsonSimple, len(c.vrpsRtr))
+		for key, vrp := range c.vrpsRtr {
+			tmpVrpMap[key] = vrp
 		}
 		c.compRtrLock.Unlock()
 
 		c.compLock.Lock()
-		c.roas = tmpRoaMap
+		c.vrps = tmpVrpMap
 
 		c.rtrRefresh = pdu.RefreshInterval
 		c.rtrRetry = pdu.RetryInterval
@@ -437,15 +437,15 @@ func (c *Client) continuousRTR(cs *rtr.ClientSession) {
 	}
 }
 
-func (c *Client) GetData() (map[string]*ROAJsonSimple, *diffMetadata) {
+func (c *Client) GetData() (map[string]*VRPJsonSimple, *diffMetadata) {
 	c.compLock.RLock()
-	roas := c.roas
+	vrps := c.vrps
 
 	md := &diffMetadata{
 		URL:       c.Path,
 		Serial:    c.serial,
 		SessionID: c.sessionID,
-		Count:     len(roas),
+		Count:     len(vrps),
 
 		RTRRefresh: c.rtrRefresh,
 		RTRRetry:   c.rtrRetry,
@@ -456,7 +456,7 @@ func (c *Client) GetData() (map[string]*ROAJsonSimple, *diffMetadata) {
 
 	c.compLock.RUnlock()
 
-	return roas, md
+	return vrps, md
 }
 
 type Comparator struct {
@@ -468,7 +468,7 @@ type Comparator struct {
 	OneOff bool
 
 	diffLock         *sync.RWMutex
-	onlyIn1, onlyIn2 []*ROAJsonSimple
+	onlyIn1, onlyIn2 []*VRPJsonSimple
 	md1              *diffMetadata
 	md2              *diffMetadata
 }
@@ -485,11 +485,11 @@ func NewComparator(c1, c2 *Client) *Comparator {
 	}
 }
 
-func Diff(a, b map[string]*ROAJsonSimple) []*ROAJsonSimple {
-	onlyInA := make([]*ROAJsonSimple, 0)
-	for key, roa := range a {
+func Diff(a, b map[string]*VRPJsonSimple) []*VRPJsonSimple {
+	onlyInA := make([]*VRPJsonSimple, 0)
+	for key, vrp := range a {
 		if _, ok := b[key]; !ok {
-			onlyInA = append(onlyInA, roa)
+			onlyInA = append(onlyInA, vrp)
 		}
 	}
 	return onlyInA
@@ -507,7 +507,7 @@ type diffMetadata struct {
 	RTRExpire  uint32 `json:"rtr-expire"`
 }
 
-type ROAJsonSimple struct {
+type VRPJsonSimple struct {
 	ASN    uint32 `json:"asn"`
 	Length uint8  `json:"max-length"`
 	Prefix string `json:"prefix"`
@@ -516,8 +516,8 @@ type ROAJsonSimple struct {
 type diffExport struct {
 	MetadataPrimary   *diffMetadata    `json:"metadata-primary"`
 	MetadataSecondary *diffMetadata    `json:"metadata-secondary"`
-	OnlyInPrimary     []*ROAJsonSimple `json:"only-primary"`
-	OnlyInSecondary   []*ROAJsonSimple `json:"only-secondary"`
+	OnlyInPrimary     []*VRPJsonSimple `json:"only-primary"`
+	OnlyInSecondary   []*VRPJsonSimple `json:"only-secondary"`
 }
 
 func (c *Comparator) ServeDiff(wr http.ResponseWriter, req *http.Request) {
@@ -553,11 +553,11 @@ func (c *Comparator) Compare() {
 		case id := <-c.comp:
 			log.Infof("Worker %d finished: comparison", id)
 
-			roas1, md1 := c.PrimaryClient.GetData()
-			roas2, md2 := c.SecondaryClient.GetData()
+			vrps1, md1 := c.PrimaryClient.GetData()
+			vrps2, md2 := c.SecondaryClient.GetData()
 
-			onlyIn1 := Diff(roas1, roas2)
-			onlyIn2 := Diff(roas2, roas1)
+			onlyIn1 := Diff(vrps1, vrps2)
+			onlyIn2 := Diff(vrps2, vrps1)
 
 			c.diffLock.Lock()
 			c.onlyIn1 = onlyIn1
@@ -566,28 +566,28 @@ func (c *Comparator) Compare() {
 			c.md1 = md1
 			c.md2 = md2
 
-			ROACount.With(
+			VRPCount.With(
 				prometheus.Labels{
 					"server": "primary",
 					"url":    md1.URL,
 					"type":   "total",
-				}).Set(float64(len(roas1)))
+				}).Set(float64(len(vrps1)))
 
-			ROACount.With(
+			VRPCount.With(
 				prometheus.Labels{
 					"server": "primary",
 					"url":    md1.URL,
 					"type":   "diff",
 				}).Set(float64(len(onlyIn1)))
 
-			ROACount.With(
+			VRPCount.With(
 				prometheus.Labels{
 					"server": "secondary",
 					"url":    md1.URL,
 					"type":   "total",
-				}).Set(float64(len(roas2)))
+				}).Set(float64(len(vrps2)))
 
-			ROACount.With(
+			VRPCount.With(
 				prometheus.Labels{
 					"server": "secondary",
 					"url":    md1.URL,

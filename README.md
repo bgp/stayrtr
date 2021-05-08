@@ -247,11 +247,11 @@ INFO[0001] Slurm filtering: 112214 kept, 159 removed, 1 asserted
 INFO[0002] New update (112215 uniques, 112215 total prefixes).
 ```
 
-For instance, if the original JSON fetched contains the ROA: `10.0.0.0/24-24 AS65001`,
+For instance, if the original JSON fetched contains the VRP: `10.0.0.0/24-24 AS65001`,
 it will be removed.
 
 The JSON exported by StayRTR will contain the overrides and the file can be signed again.
-Others StayRTR can be configured to fetch the ROAs from the filtering StayRTR:
+Others StayRTR can be configured to fetch the VRPs from the filtering StayRTR:
 the operator manages one SLURM file on a leader StayRTR.
 
 ## Debug the content
@@ -482,7 +482,7 @@ router bgp <asn>
 ```
 If multiple caches are configured, the preference controls the priority.  
 Caches which are more preferred will be connected to first, if they are not reachable then connections will be attempted to less preferred caches.  
-If caches have the same preference value, they will all be connected to and the ROAs that are synced from them will be merged together.
+If caches have the same preference value, they will all be connected to and the VRPs that are synced from them will be merged together.
 
 To visualize the state of the session:
 

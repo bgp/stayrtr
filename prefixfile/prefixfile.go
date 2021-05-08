@@ -15,15 +15,15 @@ import (
 	"strings"
 )
 
-func (roalist *ROAList) GenerateDigest() ([]byte, []byte, error) {
+func (vrplist *VRPList) GenerateDigest() ([]byte, []byte, error) {
 	signroa := make([]string, 0)
-	for _, v := range roalist.Data {
+	for _, v := range vrplist.Data {
 		signroa = append(signroa, fmt.Sprintf("%v,%v,%v,", v.Prefix, v.Length, v.ASN))
 	}
 	sort.Strings(signroa)
 	sorted := strings.Join(signroa, "")
 	dgst1 := sha256.Sum256([]byte(sorted))
-	dgst2 := sha256.Sum256([]byte(fmt.Sprintf("%v,%v%v", roalist.Metadata.Generated, sorted, roalist.Metadata.Valid)))
+	dgst2 := sha256.Sum256([]byte(fmt.Sprintf("%v,%v%v", vrplist.Metadata.Generated, sorted, vrplist.Metadata.Valid)))
 
 	return dgst1[:], dgst2[:], nil
 }
@@ -32,12 +32,12 @@ type ecdsaSignature struct {
 	R, S *big.Int
 }
 
-func (roalist *ROAList) CheckFile(key *ecdsa.PublicKey) (bool, bool, error) {
-	dgst1, dgst2, err := roalist.GenerateDigest()
+func (vrplist *VRPList) CheckFile(key *ecdsa.PublicKey) (bool, bool, error) {
+	dgst1, dgst2, err := vrplist.GenerateDigest()
 	if err != nil {
 		return false, false, err
 	}
-	signatureB, err := hex.DecodeString(roalist.Metadata.SignatureDate)
+	signatureB, err := hex.DecodeString(vrplist.Metadata.SignatureDate)
 	if err != nil {
 		return false, false, err
 	}
@@ -46,7 +46,7 @@ func (roalist *ROAList) CheckFile(key *ecdsa.PublicKey) (bool, bool, error) {
 	if err != nil {
 		return false, false, err
 	}
-	signatureB, err = hex.DecodeString(roalist.Metadata.Signature)
+	signatureB, err = hex.DecodeString(vrplist.Metadata.Signature)
 	if err != nil {
 		return false, false, err
 	}
@@ -60,8 +60,8 @@ func (roalist *ROAList) CheckFile(key *ecdsa.PublicKey) (bool, bool, error) {
 	return verify1, verify2, err
 }
 
-func (roalist *ROAList) Sign(privkey *ecdsa.PrivateKey) (string, string, error) {
-	dgst1, dgst2, err := roalist.GenerateDigest()
+func (vrplist *VRPList) Sign(privkey *ecdsa.PrivateKey) (string, string, error) {
+	dgst1, dgst2, err := vrplist.GenerateDigest()
 	if err != nil {
 		return "", "", err
 	}
@@ -77,7 +77,7 @@ func (roalist *ROAList) Sign(privkey *ecdsa.PrivateKey) (string, string, error) 
 	return hex.EncodeToString(sign1), hex.EncodeToString(sign2), nil
 }
 
-type ROAJson struct {
+type VRPJson struct {
 	Prefix string      `json:"prefix"`
 	Length uint8       `json:"maxLength"`
 	ASN    interface{} `json:"asn"`
@@ -93,18 +93,18 @@ type MetaData struct {
 	Serial        int    `json:"serial,omitempty"`
 }
 
-type ROAList struct {
+type VRPList struct {
 	Metadata MetaData  `json:"metadata,omitempty"`
-	Data     []ROAJson `json:"roas"`
+	Data     []VRPJson `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
 }
 
-func (roa *ROAJson) GetASN2() (uint32, error) {
-	switch asnc := roa.ASN.(type) {
+func (vrp *VRPJson) GetASN2() (uint32, error) {
+	switch asnc := vrp.ASN.(type) {
 	case string:
 		asnStr := strings.TrimLeft(asnc, "aAsS")
 		asnInt, err := strconv.ParseUint(asnStr, 10, 32)
 		if err != nil {
-			return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of ROA", roa.ASN))
+			return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of VRP", vrp.ASN))
 		}
 		asn := uint32(asnInt)
 		return asn, nil
@@ -113,38 +113,38 @@ func (roa *ROAJson) GetASN2() (uint32, error) {
 	case int:
 		return uint32(asnc), nil
 	default:
-		return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of ROA", roa.ASN))
+		return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of VRP", vrp.ASN))
 	}
 }
 
-func (roa *ROAJson) GetASN() uint32 {
-	asn, _ := roa.GetASN2()
+func (vrp *VRPJson) GetASN() uint32 {
+	asn, _ := vrp.GetASN2()
 	return asn
 }
 
-func (roa *ROAJson) SetASN(asn uint32) {
-	roa.ASN = fmt.Sprintf("AS%v", asn)
+func (vrp *VRPJson) SetASN(asn uint32) {
+	vrp.ASN = fmt.Sprintf("AS%v", asn)
 }
 
-func (roa *ROAJson) GetPrefix2() (*net.IPNet, error) {
-	_, prefix, err := net.ParseCIDR(roa.Prefix)
+func (vrp *VRPJson) GetPrefix2() (*net.IPNet, error) {
+	_, prefix, err := net.ParseCIDR(vrp.Prefix)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not decode prefix: %v as part of ROA", roa.Prefix))
+		return nil, errors.New(fmt.Sprintf("Could not decode prefix: %v as part of VRP", vrp.Prefix))
 	}
 	return prefix, nil
 }
 
-func (roa *ROAJson) GetPrefix() *net.IPNet {
-	prefix, _ := roa.GetPrefix2()
+func (vrp *VRPJson) GetPrefix() *net.IPNet {
+	prefix, _ := vrp.GetPrefix2()
 	return prefix
 }
 
-func (roa *ROAJson) GetMaxLen() int {
-	return int(roa.Length)
+func (vrp *VRPJson) GetMaxLen() int {
+	return int(vrp.Length)
 }
 
-func (roa *ROAJson) String() string {
-	return fmt.Sprintf("%v/%v/%v", roa.Prefix, roa.Length, roa.ASN)
+func (vrp *VRPJson) String() string {
+	return fmt.Sprintf("%v/%v/%v", vrp.Prefix, vrp.Length, vrp.ASN)
 }
 
 func GetIPBroadcast(ipnet net.IPNet) net.IP {

@@ -30,44 +30,44 @@ type RTREventHandler interface {
 	RequestNewVersion(*Client, uint16, uint32)
 }
 
-type ROAManager interface {
+type VRPManager interface {
 	GetCurrentSerial(uint16) (uint32, bool)
 	GetSessionId(*Client) (uint16, error)
-	GetCurrentROAs() ([]ROA, bool)
-	GetROAsSerialDiff(uint32) ([]ROA, bool)
+	GetCurrentVRPs() ([]VRP, bool)
+	GetVRPsSerialDiff(uint32) ([]VRP, bool)
 }
 
 type DefaultRTREventHandler struct {
-	roaManager ROAManager
+	vrpManager VRPManager
 	Log        Logger
 }
 
-func (e *DefaultRTREventHandler) SetROAManager(m ROAManager) {
-	e.roaManager = m
+func (e *DefaultRTREventHandler) SetVRPManager(m VRPManager) {
+	e.vrpManager = m
 }
 
 func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request Cache", c)
 	}
-	sessionId, _ := e.roaManager.GetSessionId(c)
-	serial, valid := e.roaManager.GetCurrentSerial(sessionId)
+	sessionId, _ := e.vrpManager.GetSessionId(c)
+	serial, valid := e.vrpManager.GetCurrentSerial(sessionId)
 	if !valid {
 		c.SendNoDataError()
 		if e.Log != nil {
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		roas, exists := e.roaManager.GetCurrentROAs()
+		vrps, exists := e.vrpManager.GetCurrentVRPs()
 		if !exists {
 			c.SendInternalError()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendROAs(sessionId, serial, roas)
+			c.SendVRPs(sessionId, serial, vrps)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent ROAs (current serial %d, session: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -77,23 +77,23 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request New Version", c)
 	}
-	serial, valid := e.roaManager.GetCurrentSerial(sessionId)
+	serial, valid := e.vrpManager.GetCurrentSerial(sessionId)
 	if !valid {
 		c.SendNoDataError()
 		if e.Log != nil {
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		roas, exists := e.roaManager.GetROAsSerialDiff(serialNumber)
+		vrps, exists := e.vrpManager.GetVRPsSerialDiff(serialNumber)
 		if !exists {
 			c.SendCacheReset()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendROAs(sessionId, serial, roas)
+			c.SendVRPs(sessionId, serial, vrps)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent ROAs (current serial %d, session from client: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -113,12 +113,12 @@ type Server struct {
 	simpleHandler  RTREventHandler
 	enforceVersion bool
 
-	roalock          *sync.RWMutex
-	roaListDiff      [][]ROA
-	roaMapSerial     map[uint32]int
-	roaListSerial    []uint32
-	roaCurrent       []ROA
-	roaCurrentSerial uint32
+	vrplock          *sync.RWMutex
+	vrpListDiff      [][]VRP
+	vrpMapSerial     map[uint32]int
+	vrpListSerial    []uint32
+	vrpCurrent       []VRP
+	vrpCurrentSerial uint32
 	keepDiff         int
 	manualserial     bool
 
@@ -168,11 +168,11 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 	}
 
 	return &Server{
-		roalock:       &sync.RWMutex{},
-		roaListDiff:   make([][]ROA, 0),
-		roaMapSerial:  make(map[uint32]int),
-		roaListSerial: make([]uint32, 0),
-		roaCurrent:    make([]ROA, 0),
+		vrplock:       &sync.RWMutex{},
+		vrpListDiff:   make([][]VRP, 0),
+		vrpMapSerial:  make(map[uint32]int),
+		vrpListSerial: make([]uint32, 0),
+		vrpCurrent:    make([]VRP, 0),
 		keepDiff:      configuration.KeepDifference,
 
 		clientlock:     &sync.RWMutex{},
@@ -193,42 +193,42 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 	}
 }
 
-func (roa ROA) HashKey() string {
-	return fmt.Sprintf("%v-%v-%v", roa.Prefix.String(), roa.MaxLen, roa.ASN)
+func (vrp VRP) HashKey() string {
+	return fmt.Sprintf("%v-%v-%v", vrp.Prefix.String(), vrp.MaxLen, vrp.ASN)
 }
 
-func ConvertROAListToMap(roas []ROA) map[string]ROA {
-	roaMap := make(map[string]ROA, len(roas))
-	for _, v := range roas {
-		roaMap[v.HashKey()] = v
+func ConvertVRPListToMap(vrps []VRP) map[string]VRP {
+	vrpMap := make(map[string]VRP, len(vrps))
+	for _, v := range vrps {
+		vrpMap[v.HashKey()] = v
 	}
-	return roaMap
+	return vrpMap
 }
 
-func ComputeDiff(newRoas []ROA, prevRoas []ROA) ([]ROA, []ROA, []ROA) {
-	added := make([]ROA, 0)
-	removed := make([]ROA, 0)
-	unchanged := make([]ROA, 0)
+func ComputeDiff(newVrps []VRP, prevVrps []VRP) ([]VRP, []VRP, []VRP) {
+	added := make([]VRP, 0)
+	removed := make([]VRP, 0)
+	unchanged := make([]VRP, 0)
 
-	newRoasMap := ConvertROAListToMap(newRoas)
-	prevRoasMap := ConvertROAListToMap(prevRoas)
+	newVrpsMap := ConvertVRPListToMap(newVrps)
+	prevVrpsMap := ConvertVRPListToMap(prevVrps)
 
-	for _, roa := range newRoas {
-		_, exists := prevRoasMap[roa.HashKey()]
+	for _, vrp := range newVrps {
+		_, exists := prevVrpsMap[vrp.HashKey()]
 		if !exists {
-			rcopy := roa.Copy()
+			rcopy := vrp.Copy()
 			rcopy.Flags = 1
 			added = append(added, rcopy)
 		}
 	}
-	for _, roa := range prevRoas {
-		_, exists := newRoasMap[roa.HashKey()]
+	for _, vrp := range prevVrps {
+		_, exists := newVrpsMap[vrp.HashKey()]
 		if !exists {
-			rcopy := roa.Copy()
+			rcopy := vrp.Copy()
 			rcopy.Flags = 0
 			removed = append(removed, rcopy)
 		} else {
-			rcopy := roa.Copy()
+			rcopy := vrp.Copy()
 			unchanged = append(unchanged, rcopy)
 		}
 	}
@@ -236,37 +236,37 @@ func ComputeDiff(newRoas []ROA, prevRoas []ROA) ([]ROA, []ROA, []ROA) {
 	return added, removed, unchanged
 }
 
-func ApplyDiff(diff []ROA, prevRoas []ROA) []ROA {
-	newroas := make([]ROA, 0)
-	diffMap := ConvertROAListToMap(diff)
-	prevRoasMap := ConvertROAListToMap(prevRoas)
+func ApplyDiff(diff []VRP, prevVrps []VRP) []VRP {
+	newvrps := make([]VRP, 0)
+	diffMap := ConvertVRPListToMap(diff)
+	prevVrpsMap := ConvertVRPListToMap(prevVrps)
 
-	for _, roa := range prevRoas {
-		_, exists := diffMap[roa.HashKey()]
+	for _, vrp := range prevVrps {
+		_, exists := diffMap[vrp.HashKey()]
 		if !exists {
-			rcopy := roa.Copy()
-			newroas = append(newroas, rcopy)
+			rcopy := vrp.Copy()
+			newvrps = append(newvrps, rcopy)
 		}
 	}
-	for _, roa := range diff {
-		if roa.Flags == FLAG_ADDED {
-			rcopy := roa.Copy()
-			newroas = append(newroas, rcopy)
-		} else if roa.Flags == FLAG_REMOVED {
-			croa, exists := prevRoasMap[roa.HashKey()]
+	for _, vrp := range diff {
+		if vrp.Flags == FLAG_ADDED {
+			rcopy := vrp.Copy()
+			newvrps = append(newvrps, rcopy)
+		} else if vrp.Flags == FLAG_REMOVED {
+			cvrp, exists := prevVrpsMap[vrp.HashKey()]
 			if !exists {
-				rcopy := roa.Copy()
-				newroas = append(newroas, rcopy)
+				rcopy := vrp.Copy()
+				newvrps = append(newvrps, rcopy)
 			} else {
-				if croa.Flags == FLAG_REMOVED {
-					rcopy := roa.Copy()
-					newroas = append(newroas, rcopy)
+				if cvrp.Flags == FLAG_REMOVED {
+					rcopy := vrp.Copy()
+					newvrps = append(newvrps, rcopy)
 				}
 			}
 		}
 
 	}
-	return newroas
+	return newvrps
 }
 
 func (s *Server) SetManualSerial(v bool) {
@@ -277,112 +277,112 @@ func (s *Server) GetSessionId(c *Client) (uint16, error) {
 	return s.sessId, nil
 }
 
-func (s *Server) GetCurrentROAs() ([]ROA, bool) {
-	s.roalock.RLock()
-	roa := s.roaCurrent
-	s.roalock.RUnlock()
-	return roa, true
+func (s *Server) GetCurrentVRPs() ([]VRP, bool) {
+	s.vrplock.RLock()
+	vrp := s.vrpCurrent
+	s.vrplock.RUnlock()
+	return vrp, true
 }
 
-func (s *Server) GetROAsSerialDiff(serial uint32) ([]ROA, bool) {
-	s.roalock.RLock()
-	roa, ok := s.getROAsSerialDiff(serial)
-	s.roalock.RUnlock()
-	return roa, ok
+func (s *Server) GetVRPsSerialDiff(serial uint32) ([]VRP, bool) {
+	s.vrplock.RLock()
+	vrp, ok := s.getVRPsSerialDiff(serial)
+	s.vrplock.RUnlock()
+	return vrp, ok
 }
 
-func (s *Server) getROAsSerialDiff(serial uint32) ([]ROA, bool) {
-	if serial == s.roaCurrentSerial {
-		return []ROA{}, true
+func (s *Server) getVRPsSerialDiff(serial uint32) ([]VRP, bool) {
+	if serial == s.vrpCurrentSerial {
+		return []VRP{}, true
 	}
 
-	roa := make([]ROA, 0)
-	index, ok := s.roaMapSerial[serial]
+	vrp := make([]VRP, 0)
+	index, ok := s.vrpMapSerial[serial]
 	if ok {
-		roa = s.roaListDiff[index]
+		vrp = s.vrpListDiff[index]
 	}
-	return roa, ok
+	return vrp, ok
 }
 
 func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
-	s.roalock.RLock()
+	s.vrplock.RLock()
 	serial, valid := s.getCurrentSerial()
-	s.roalock.RUnlock()
+	s.vrplock.RUnlock()
 	return serial, valid
 }
 
 func (s *Server) getCurrentSerial() (uint32, bool) {
-	return s.roaCurrentSerial, len(s.roaListSerial) > 0
+	return s.vrpCurrentSerial, len(s.vrpListSerial) > 0
 }
 
 func (s *Server) GenerateSerial() uint32 {
-	s.roalock.RLock()
+	s.vrplock.RLock()
 	newserial := s.generateSerial()
-	s.roalock.RUnlock()
+	s.vrplock.RUnlock()
 	return newserial
 }
 
 func (s *Server) generateSerial() uint32 {
-	newserial := s.roaCurrentSerial
-	if !s.manualserial && len(s.roaListSerial) > 0 {
-		newserial = s.roaListSerial[len(s.roaListSerial)-1] + 1
+	newserial := s.vrpCurrentSerial
+	if !s.manualserial && len(s.vrpListSerial) > 0 {
+		newserial = s.vrpListSerial[len(s.vrpListSerial)-1] + 1
 	}
 	return newserial
 }
 
 func (s *Server) setSerial(serial uint32) {
-	s.roaCurrentSerial = serial
+	s.vrpCurrentSerial = serial
 }
 
 // This function sets the serial. Function must
-// be called before the ROAs data is added.
+// be called before the VRPs data is added.
 func (s *Server) SetSerial(serial uint32) {
-	s.roalock.RLock()
-	//s.roaListSerial = make([]uint32, 0)
+	s.vrplock.RLock()
+	//s.vrpListSerial = make([]uint32, 0)
 	s.setSerial(serial)
-	s.roalock.RUnlock()
+	s.vrplock.RUnlock()
 }
 
-func (s *Server) AddROAs(roas []ROA) {
-	s.roalock.RLock()
-	curDiff := make([]ROA, 0)
+func (s *Server) AddVRPs(vrps []VRP) {
+	s.vrplock.RLock()
+	curDiff := make([]VRP, 0)
 
-	roaCurrent := s.roaCurrent
+	vrpCurrent := s.vrpCurrent
 
-	added, removed, unchanged := ComputeDiff(roas, roaCurrent)
+	added, removed, unchanged := ComputeDiff(vrps, vrpCurrent)
 	if s.log != nil && s.logverbose {
 		s.log.Debugf("Computed diff: added (%v), removed (%v), unchanged (%v)", added, removed, unchanged)
 	} else if s.log != nil {
 		s.log.Debugf("Computed diff: added (%d), removed (%d), unchanged (%d)", len(added), len(removed), len(unchanged))
 	}
 	curDiff = append(added, removed...)
-	s.roalock.RUnlock()
+	s.vrplock.RUnlock()
 
-	s.AddROAsDiff(curDiff)
+	s.AddVRPsDiff(curDiff)
 }
 
 func (s *Server) addSerial(serial uint32) []uint32 {
 	removed := make([]uint32, 0)
-	if len(s.roaListSerial) >= s.keepDiff && s.keepDiff > 0 {
-		removeDiff := len(s.roaListSerial) - s.keepDiff
-		removed = s.roaListSerial[0:removeDiff]
-		s.roaListSerial = s.roaListSerial[removeDiff:]
+	if len(s.vrpListSerial) >= s.keepDiff && s.keepDiff > 0 {
+		removeDiff := len(s.vrpListSerial) - s.keepDiff
+		removed = s.vrpListSerial[0:removeDiff]
+		s.vrpListSerial = s.vrpListSerial[removeDiff:]
 	}
-	s.roaListSerial = append(s.roaListSerial, serial)
+	s.vrpListSerial = append(s.vrpListSerial, serial)
 	return removed
 }
 
-func (s *Server) AddROAsDiff(diff []ROA) {
-	s.roalock.RLock()
-	nextDiff := make([][]ROA, len(s.roaListDiff))
-	for i, prevRoas := range s.roaListDiff {
-		nextDiff[i] = ApplyDiff(diff, prevRoas)
+func (s *Server) AddVRPsDiff(diff []VRP) {
+	s.vrplock.RLock()
+	nextDiff := make([][]VRP, len(s.vrpListDiff))
+	for i, prevVrps := range s.vrpListDiff {
+		nextDiff[i] = ApplyDiff(diff, prevVrps)
 	}
-	newRoaCurrent := ApplyDiff(diff, s.roaCurrent)
+	newVrpCurrent := ApplyDiff(diff, s.vrpCurrent)
 	curserial, _ := s.getCurrentSerial()
-	s.roalock.RUnlock()
+	s.vrplock.RUnlock()
 
-	s.roalock.Lock()
+	s.vrplock.Lock()
 	newserial := s.generateSerial()
 	removed := s.addSerial(newserial)
 
@@ -391,23 +391,23 @@ func (s *Server) AddROAsDiff(diff []ROA) {
 		nextDiff = nextDiff[len(removed):]
 	}
 
-	s.roaMapSerial[curserial] = len(nextDiff) - 1
+	s.vrpMapSerial[curserial] = len(nextDiff) - 1
 
 	if len(removed) > 0 {
-		for k, v := range s.roaMapSerial {
+		for k, v := range s.vrpMapSerial {
 			if k != curserial {
-				s.roaMapSerial[k] = v - len(removed)
+				s.vrpMapSerial[k] = v - len(removed)
 			}
 		}
 	}
 
 	for _, removeSerial := range removed {
-		delete(s.roaMapSerial, removeSerial)
+		delete(s.vrpMapSerial, removeSerial)
 	}
-	s.roaListDiff = nextDiff
-	s.roaCurrent = newRoaCurrent
+	s.vrpListDiff = nextDiff
+	s.vrpCurrent = newVrpCurrent
 	s.setSerial(newserial)
-	s.roalock.Unlock()
+	s.vrplock.Unlock()
 }
 
 func (s *Server) SetBaseVersion(version uint8) {
@@ -839,42 +839,42 @@ func (c *Client) Notify(sessionId uint16, serialNumber uint32) {
 	c.SendPDU(pdu)
 }
 
-type ROA struct {
+type VRP struct {
 	Prefix net.IPNet
 	MaxLen uint8
 	ASN    uint32
 	Flags  uint8
 }
 
-func (r ROA) String() string {
-	return fmt.Sprintf("ROA %v -> /%v, AS%v, Flags: %v", r.Prefix.String(), r.MaxLen, r.ASN, r.Flags)
+func (r VRP) String() string {
+	return fmt.Sprintf("VRP %v -> /%v, AS%v, Flags: %v", r.Prefix.String(), r.MaxLen, r.ASN, r.Flags)
 }
 
-func (r1 ROA) Equals(r2 ROA) bool {
+func (r1 VRP) Equals(r2 VRP) bool {
 	return r1.MaxLen == r2.MaxLen && r1.ASN == r2.ASN && bytes.Equal(r1.Prefix.IP, r2.Prefix.IP) && bytes.Equal(r1.Prefix.Mask, r2.Prefix.Mask)
 }
 
-func (r1 ROA) Copy() ROA {
+func (r1 VRP) Copy() VRP {
 	newprefix := net.IPNet{
 		IP:   make([]byte, len(r1.Prefix.IP)),
 		Mask: make([]byte, len(r1.Prefix.Mask)),
 	}
 	copy(newprefix.IP, r1.Prefix.IP)
 	copy(newprefix.Mask, r1.Prefix.Mask)
-	return ROA{
+	return VRP{
 		Prefix: newprefix,
 		ASN:    r1.ASN,
 		MaxLen: r1.MaxLen,
 		Flags:  r1.Flags}
 }
 
-func (c *Client) SendROAs(sessionId uint16, serialNumber uint32, roas []ROA) {
+func (c *Client) SendVRPs(sessionId uint16, serialNumber uint32, vrps []VRP) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
-	for _, roa := range roas {
-		c.SendROA(roa)
+	for _, vrp := range vrps {
+		c.SendVRP(vrp)
 	}
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
@@ -916,21 +916,21 @@ func (c *Client) SendWrongVersionError() {
 	c.SendPDU(pdu)
 }
 
-func (c *Client) SendROA(roa ROA) {
-	if roa.Prefix.IP.To4() == nil && roa.Prefix.IP.To16() != nil {
+func (c *Client) SendVRP(vrp VRP) {
+	if vrp.Prefix.IP.To4() == nil && vrp.Prefix.IP.To16() != nil {
 		pdu := &PDUIPv6Prefix{
-			Flags:  roa.Flags,
-			MaxLen: roa.MaxLen,
-			ASN:    roa.ASN,
-			Prefix: roa.Prefix,
+			Flags:  vrp.Flags,
+			MaxLen: vrp.MaxLen,
+			ASN:    vrp.ASN,
+			Prefix: vrp.Prefix,
 		}
 		c.SendPDU(pdu)
-	} else if roa.Prefix.IP.To4() != nil {
+	} else if vrp.Prefix.IP.To4() != nil {
 		pdu := &PDUIPv4Prefix{
-			Flags:  roa.Flags,
-			MaxLen: roa.MaxLen,
-			ASN:    roa.ASN,
-			Prefix: roa.Prefix,
+			Flags:  vrp.Flags,
+			MaxLen: vrp.MaxLen,
+			ASN:    vrp.ASN,
+			Prefix: vrp.Prefix,
 		}
 		c.SendPDU(pdu)
 	}

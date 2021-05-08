@@ -79,14 +79,14 @@ func DecodeJSONSlurm(buf io.Reader) (*SlurmConfig, error) {
 	return slurm, nil
 }
 
-func (s *SlurmValidationOutputFilters) FilterOnROAs(roas []ROAJson) ([]ROAJson, []ROAJson) {
-	added := make([]ROAJson, 0)
-	removed := make([]ROAJson, 0)
+func (s *SlurmValidationOutputFilters) FilterOnVRPs(vrps []VRPJson) ([]VRPJson, []VRPJson) {
+	added := make([]VRPJson, 0)
+	removed := make([]VRPJson, 0)
 	if s.PrefixFilters == nil || len(s.PrefixFilters) == 0 {
-		return roas, removed
+		return vrps, removed
 	}
-	for _, roa := range roas {
-		rPrefix := roa.GetPrefix()
+	for _, vrp := range vrps {
+		rPrefix := vrp.GetPrefix()
 		var rIPStart net.IP
 		var rIPEnd net.IP
 		if rPrefix != nil {
@@ -106,32 +106,32 @@ func (s *SlurmValidationOutputFilters) FilterOnROAs(roas []ROAJson) ([]ROAJson, 
 				}
 			}
 			if match && !fASNEmpty {
-				if roa.GetASN() != fASN {
+				if vrp.GetASN() != fASN {
 					match = false
 				}
 			}
 			if match {
-				removed = append(removed, roa)
+				removed = append(removed, vrp)
 				wasRemoved = true
 				break
 			}
 		}
 
 		if !wasRemoved {
-			added = append(added, roa)
+			added = append(added, vrp)
 		}
 	}
 	return added, removed
 }
 
-func (s *SlurmConfig) FilterOnROAs(roas []ROAJson) ([]ROAJson, []ROAJson) {
-	return s.ValidationOutputFilters.FilterOnROAs(roas)
+func (s *SlurmConfig) FilterOnVRPs(vrps []VRPJson) ([]VRPJson, []VRPJson) {
+	return s.ValidationOutputFilters.FilterOnVRPs(vrps)
 }
 
-func (s *SlurmLocallyAddedAssertions) AssertROAs() []ROAJson {
-	roas := make([]ROAJson, 0)
+func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
+	vrps := make([]VRPJson, 0)
 	if s.PrefixAssertions == nil || len(s.PrefixAssertions) == 0 {
-		return roas
+		return vrps
 	}
 	for _, assertion := range s.PrefixAssertions {
 		prefix := assertion.GetPrefix()
@@ -143,22 +143,22 @@ func (s *SlurmLocallyAddedAssertions) AssertROAs() []ROAJson {
 		if assertion.MaxPrefixLength <= size {
 			maxLength = size
 		}
-		roas = append(roas, ROAJson{
+		vrps = append(vrps, VRPJson{
 			ASN:    fmt.Sprintf("AS%v", assertion.ASN),
 			Prefix: assertion.Prefix,
 			Length: uint8(maxLength),
 			TA:     assertion.Comment,
 		})
 	}
-	return roas
+	return vrps
 }
 
-func (s *SlurmConfig) AssertROAs() []ROAJson {
-	return s.LocallyAddedAssertions.AssertROAs()
+func (s *SlurmConfig) AssertVRPs() []VRPJson {
+	return s.LocallyAddedAssertions.AssertVRPs()
 }
 
-func (s *SlurmConfig) FilterAssert(roas []ROAJson) []ROAJson {
-	a, _ := s.FilterOnROAs(roas)
-	b := s.AssertROAs()
+func (s *SlurmConfig) FilterAssert(vrps []VRPJson) []VRPJson {
+	a, _ := s.FilterOnVRPs(vrps)
+	b := s.AssertVRPs()
 	return append(a, b...)
 }

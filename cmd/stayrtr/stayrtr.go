@@ -98,10 +98,10 @@ var (
 	LogVerbose = flag.Bool("log.verbose", false, "Additional debug logs")
 	Version    = flag.Bool("version", false, "Print version")
 
-	NumberOfROAs = prometheus.NewGaugeVec(
+	NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "rpki_roas",
-			Help: "Number of ROAS.",
+			Name: "rpki_vrps",
+			Help: "Number of VRPs.",
 		},
 		[]string{"ip_version", "filtered", "path"},
 	)
@@ -158,7 +158,7 @@ var (
 )
 
 func initMetrics() {
-	prometheus.MustRegister(NumberOfROAs)
+	prometheus.MustRegister(NumberOfVRPs)
 	prometheus.MustRegister(LastChange)
 	prometheus.MustRegister(LastRefresh)
 	prometheus.MustRegister(RefreshStatusCode)
@@ -176,24 +176,24 @@ func checkFile(data []byte) ([]byte, error) {
 	return hsum[:], nil
 }
 
-func decodeJSON(data []byte) (*prefixfile.ROAList, error) {
+func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	buf := bytes.NewBuffer(data)
 	dec := json.NewDecoder(buf)
 
-	var roalistjson prefixfile.ROAList
-	err := dec.Decode(&roalistjson)
-	return &roalistjson, err
+	var vrplistjson prefixfile.VRPList
+	err := dec.Decode(&vrplistjson)
+	return &vrplistjson, err
 }
 
-func processData(roalistjson []prefixfile.ROAJson) ([]rtr.ROA, int, int, int) {
+func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 	filterDuplicates := make(map[string]bool)
 
-	roalist := make([]rtr.ROA, 0)
+	vrplist := make([]rtr.VRP, 0)
 
 	var count int
 	var countv4 int
 	var countv6 int
-	for _, v := range roalistjson {
+	for _, v := range vrplistjson {
 		prefix, err := v.GetPrefix2()
 		if err != nil {
 			log.Error(err)
@@ -220,14 +220,14 @@ func processData(roalistjson []prefixfile.ROAJson) ([]rtr.ROA, int, int, int) {
 			continue
 		}
 
-		roa := rtr.ROA{
+		vrp := rtr.VRP{
 			Prefix: *prefix,
 			ASN:    asn,
 			MaxLen: v.Length,
 		}
-		roalist = append(roalist, roa)
+		vrplist = append(vrplist, vrp)
 	}
-	return roalist, count, countv4, countv6
+	return vrplist, count, countv4, countv6
 }
 
 type IdenticalFile struct {
@@ -266,32 +266,32 @@ func (s *state) updateFile(file string) error {
 	s.lastchange = time.Now().UTC()
 	s.lastdata = data
 
-	roalistjson, err := decodeJSON(s.lastdata)
+	vrplistjson, err := decodeJSON(s.lastdata)
 	if err != nil {
 		return err
 	}
 
 	if s.useSerial == USE_SERIAL_START || s.useSerial == USE_SERIAL_FULL {
-		//if serial, _ := s.server.GetCurrentSerial(sessid); roalistjson.Metadata.Serial != 0 && serial != roalistjson.Metadata.Serial  {
+		//if serial, _ := s.server.GetCurrentSerial(sessid); vrplistjson.Metadata.Serial != 0 && serial != vrplistjson.Metadata.Serial  {
 		if _, valid := s.server.GetCurrentSerial(sessid); !valid || s.useSerial == USE_SERIAL_FULL {
 			// Set serial at beginning
-			s.server.SetSerial(uint32(roalistjson.Metadata.Serial))
+			s.server.SetSerial(uint32(vrplistjson.Metadata.Serial))
 		}
 	}
 
 	if s.checktime {
-		validtime := time.Unix(int64(roalistjson.Metadata.Valid), 0).UTC()
+		validtime := time.Unix(int64(vrplistjson.Metadata.Valid), 0).UTC()
 		if time.Now().UTC().After(validtime) {
 			return errors.New(fmt.Sprintf("File is expired: %v", validtime))
 		}
 	}
 	if s.verify {
 		log.Debugf("Verifying signature in %v", file)
-		if roalistjson.Metadata.SignatureDate == "" || roalistjson.Metadata.Signature == "" {
+		if vrplistjson.Metadata.SignatureDate == "" || vrplistjson.Metadata.Signature == "" {
 			return errors.New("No signatures in file")
 		}
 
-		validdata, validdatatime, err := roalistjson.CheckFile(s.pubkey)
+		validdata, validdatatime, err := vrplistjson.CheckFile(s.pubkey)
 		if err != nil {
 			return err
 		}
@@ -301,24 +301,24 @@ func (s *state) updateFile(file string) error {
 		log.Debugf("Signature verified")
 	}
 
-	roasjson := roalistjson.Data
+	vrpsjson := vrplistjson.Data
 	if s.slurm != nil {
-		kept, removed := s.slurm.FilterOnROAs(roasjson)
-		asserted := s.slurm.AssertROAs()
+		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
+		asserted := s.slurm.AssertVRPs()
 		log.Infof("Slurm filtering: %v kept, %v removed, %v asserted", len(kept), len(removed), len(asserted))
-		roasjson = append(kept, asserted...)
+		vrpsjson = append(kept, asserted...)
 	}
 
-	roas, count, countv4, countv6 := processData(roasjson)
+	vrps, count, countv4, countv6 := processData(vrpsjson)
 	if err != nil {
 		return err
 	}
 
 	log.Infof("New update (%v uniques, %v total prefixes). %v bytes. Updating sha256 hash %x -> %x",
-		len(roas), count, len(s.lastconverted), s.lasthash, hsum)
+		len(vrps), count, len(s.lastconverted), s.lasthash, hsum)
 	s.lasthash = hsum
 
-	s.server.AddROAs(roas)
+	s.server.AddVRPs(vrps)
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
 	log.Infof("Updated added, new serial %v", serial)
@@ -328,16 +328,16 @@ func (s *state) updateFile(file string) error {
 	}
 
 	s.lockJson.Lock()
-	s.exported = prefixfile.ROAList{
+	s.exported = prefixfile.VRPList{
 		Metadata: prefixfile.MetaData{
-			Counts:    len(roasjson),
-			Generated: roalistjson.Metadata.Generated,
-			Valid:     roalistjson.Metadata.Valid,
+			Counts:    len(vrpsjson),
+			Generated: vrplistjson.Metadata.Generated,
+			Valid:     vrplistjson.Metadata.Valid,
 			Serial:    int(serial),
-			/*Signature:     roalistjson.Metadata.Signature,
-			SignatureDate: roalistjson.Metadata.SignatureDate,*/
+			/*Signature:     vrplistjson.Metadata.Signature,
+			SignatureDate: vrplistjson.Metadata.SignatureDate,*/
 		},
-		Data: roasjson,
+		Data: vrpsjson,
 	}
 
 	if s.key != nil {
@@ -354,10 +354,10 @@ func (s *state) updateFile(file string) error {
 	if s.metricsEvent != nil {
 		var countv4_dup int
 		var countv6_dup int
-		for _, roa := range roas {
-			if roa.Prefix.IP.To4() != nil {
+		for _, vrp := range vrps {
+			if vrp.Prefix.IP.To4() != nil {
 				countv4_dup++
-			} else if roa.Prefix.IP.To16() != nil {
+			} else if vrp.Prefix.IP.To16() != nil {
 				countv6_dup++
 			}
 		}
@@ -453,7 +453,7 @@ type state struct {
 
 	metricsEvent *metricsEvent
 
-	exported prefixfile.ROAList
+	exported prefixfile.VRPList
 	lockJson *sync.RWMutex
 	key      *ecdsa.PrivateKey
 
@@ -486,10 +486,10 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 }
 
 func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
-	NumberOfROAs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
-	NumberOfROAs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
-	NumberOfROAs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
-	NumberOfROAs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
+	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
+	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
+	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
+	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
 	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
@@ -560,7 +560,7 @@ func main() {
 	}
 
 	server := rtr.NewServer(sc, me, deh)
-	deh.SetROAManager(server)
+	deh.SetVRPManager(server)
 
 	var pubkey *ecdsa.PublicKey
 	if *Verify {
