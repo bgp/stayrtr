@@ -68,7 +68,7 @@ var (
 )
 
 type Client struct {
-	Data prefixfile.ROAList
+	Data prefixfile.VRPList
 
 	InitSerial bool
 	Serial     uint32
@@ -78,7 +78,7 @@ type Client struct {
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 	switch pdu := pdu.(type) {
 	case *rtr.PDUIPv4Prefix:
-		rj := prefixfile.ROAJson{
+		rj := prefixfile.VRPJson{
 			Prefix: pdu.Prefix.String(),
 			ASN:    fmt.Sprintf("AS%v", pdu.ASN),
 			Length: pdu.MaxLen,
@@ -90,7 +90,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			log.Debugf("Received: %v", pdu)
 		}
 	case *rtr.PDUIPv6Prefix:
-		rj := prefixfile.ROAJson{
+		rj := prefixfile.VRPJson{
 			Prefix: pdu.Prefix.String(),
 			ASN:    fmt.Sprintf("AS%v", pdu.ASN),
 			Length: pdu.MaxLen,
@@ -146,9 +146,9 @@ func main() {
 	}
 
 	client := &Client{
-		Data: prefixfile.ROAList{
+		Data: prefixfile.VRPList{
 			Metadata: prefixfile.MetaData{},
-			Data:     make([]prefixfile.ROAJson, 0),
+			Data:     make([]prefixfile.VRPJson, 0),
 		},
 		InitSerial: *InitSerial,
 		Serial:     uint32(*Serial),

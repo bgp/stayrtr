@@ -75,24 +75,24 @@ func TestDecodeJSON(t *testing.T) {
 	assert.Equal(t, "192.0.2.0/24", decoded.ValidationOutputFilters.PrefixFilters[0].Prefix)
 }
 
-func TestFilterOnROAs(t *testing.T) {
-	roas := []ROAJson{
-		ROAJson{
+func TestFilterOnVRPs(t *testing.T) {
+	vrps := []VRPJson{
+		VRPJson{
 			ASN:    "AS65001",
 			Prefix: "192.168.0.0/25",
 			Length: 25,
 		},
-		ROAJson{
+		VRPJson{
 			ASN:    "AS65002",
 			Prefix: "192.168.1.0/24",
 			Length: 24,
 		},
-		ROAJson{
+		VRPJson{
 			ASN:    "AS65003",
 			Prefix: "192.168.2.0/24",
 			Length: 24,
 		},
-		ROAJson{
+		VRPJson{
 			ASN:    "AS65004",
 			Prefix: "10.0.0.0/24",
 			Length: 24,
@@ -113,13 +113,13 @@ func TestFilterOnROAs(t *testing.T) {
 			},
 		},
 	}
-	added, removed := slurm.FilterOnROAs(roas)
+	added, removed := slurm.FilterOnVRPs(vrps)
 	assert.Len(t, added, 1)
 	assert.Len(t, removed, 3)
 	assert.Equal(t, uint32(65001), removed[0].GetASN())
 }
 
-func TestAssertROAs(t *testing.T) {
+func TestAssertVRPs(t *testing.T) {
 	slurm := SlurmLocallyAddedAssertions{
 		PrefixAssertions: []SlurmPrefixAssertion{
 			SlurmPrefixAssertion{
@@ -138,6 +138,6 @@ func TestAssertROAs(t *testing.T) {
 			},
 		},
 	}
-	roas := slurm.AssertROAs()
-	assert.Len(t, roas, 3)
+	vrps := slurm.AssertVRPs()
+	assert.Len(t, vrps, 3)
 }
