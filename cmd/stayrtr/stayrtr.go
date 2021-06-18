@@ -12,13 +12,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
-	"github.com/bgp/stayrtr/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -28,6 +21,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/prefixfile"
+	"github.com/bgp/stayrtr/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -85,6 +86,7 @@ var (
 	UseSerial = flag.String("useserial", "disable", "Use serial contained in file (disable, startup, full)")
 
 	Etag            = flag.Bool("etag", true, "Enable Etag header")
+	LastModified    = flag.Bool("last.modified", true, "Enable Last-Modified header")
 	UserAgent       = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	Mime            = flag.String("mime", "application/json", "Accept setting format (some servers may prefer text/json)")
 	RefreshInterval = flag.Int("refresh", 600, "Refresh interval in seconds")
@@ -589,6 +591,7 @@ func main() {
 	s.fetchConfig.UserAgent = *UserAgent
 	s.fetchConfig.Mime = *Mime
 	s.fetchConfig.EnableEtags = *Etag
+	s.fetchConfig.EnableLastModified = *LastModified
 
 	if serialId, ok := serialToId[*UseSerial]; ok {
 		s.useSerial = serialId
