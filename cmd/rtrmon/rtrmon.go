@@ -7,13 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
-	"github.com/bgp/stayrtr/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,6 +15,14 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/prefixfile"
+	"github.com/bgp/stayrtr/utils"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -583,14 +584,14 @@ func (c *Comparator) Compare() {
 			VRPCount.With(
 				prometheus.Labels{
 					"server": "secondary",
-					"url":    md1.URL,
+					"url":    md2.URL,
 					"type":   "total",
 				}).Set(float64(len(vrps2)))
 
 			VRPCount.With(
 				prometheus.Labels{
 					"server": "secondary",
-					"url":    md1.URL,
+					"url":    md2.URL,
 					"type":   "diff",
 				}).Set(float64(len(onlyIn2)))
 
