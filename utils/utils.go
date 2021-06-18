@@ -7,24 +7,27 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"time"
 	"sync"
+	"time"
 )
 
 type FetchConfig struct {
 	UserAgent string
 	Mime      string
 
-	etags       map[string]string
-	etagsLock   *sync.RWMutex
-	EnableEtags bool
+	etags                  map[string]string
+	lastModified           map[string]time.Time
+	conditionalRequestLock *sync.RWMutex
+	EnableEtags            bool
+	EnableLastModified     bool
 }
 
 func NewFetchConfig() *FetchConfig {
 	return &FetchConfig{
-		etags: make(map[string]string),
-		etagsLock: &sync.RWMutex{},
-		Mime: "application/json",
+		etags:                  make(map[string]string),
+		lastModified:           make(map[string]time.Time),
+		conditionalRequestLock: &sync.RWMutex{},
+		Mime:                   "application/json",
 	}
 }
 
@@ -75,12 +78,20 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 			req.Header.Set("Accept", c.Mime)
 		}
 
-		c.etagsLock.RLock()
-		etag, ok := c.etags[file]
-		c.etagsLock.RUnlock()
-		if c.EnableEtags && ok {
-			req.Header.Set("If-None-Match", etag)
+		c.conditionalRequestLock.RLock()
+		if c.EnableEtags {
+			etag, ok := c.etags[file]
+			if ok {
+				req.Header.Set("If-None-Match", etag)
+			}
 		}
+		if c.EnableLastModified {
+			lastModified, ok := c.lastModified[file]
+			if ok {
+				req.Header.Set("If-Modified-Since", lastModified.UTC().Format(http.TimeFormat))
+			}
+		}
+		c.conditionalRequestLock.RUnlock()
 
 		proxyurl, err := http.ProxyFromEnvironment(req)
 		if err != nil {
@@ -109,9 +120,10 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 				File: file,
 			}
 		} else if fhttp.StatusCode != 200 {
-			c.etagsLock.Lock()
+			c.conditionalRequestLock.Lock()
 			delete(c.etags, file)
-			c.etagsLock.Unlock()
+			delete(c.lastModified, file)
+			c.conditionalRequestLock.Unlock()
 			return nil, fhttp.StatusCode, true, fmt.Errorf("HTTP %s", fhttp.Status)
 		}
 		//LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
@@ -121,14 +133,27 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 		newEtag := fhttp.Header.Get("ETag")
 
 		if !c.EnableEtags || newEtag == "" || newEtag != c.etags[file] { // check lock here
-			c.etagsLock.Lock()
+			c.conditionalRequestLock.Lock()
 			c.etags[file] = newEtag
-			c.etagsLock.Unlock()
+			c.conditionalRequestLock.Unlock()
 		} else {
 			return nil, fhttp.StatusCode, true, IdenticalEtag{
 				File: file,
 				Etag: newEtag,
 			}
+		}
+
+		if c.EnableLastModified {
+			// Accept any valid Last-Modified values. Because of the 1s resolution,
+			// getting the same value is not an error (c.f. the IdenticalEtag error).
+			ifModifiedSince, err := http.ParseTime(fhttp.Header.Get("Last-Modified"))
+			c.conditionalRequestLock.Lock()
+			if err == nil {
+				c.lastModified[file] = ifModifiedSince
+			} else {
+				delete(c.lastModified, file)
+			}
+			c.conditionalRequestLock.Unlock()
 		}
 	} else {
 		f, err = os.Open(file)
