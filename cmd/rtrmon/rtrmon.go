@@ -44,7 +44,8 @@ var (
 	MetricsPath = flag.String("metrics", "/metrics", "Metrics path")
 	OutFile     = flag.String("file", "diff.json", "Diff file (or URL path without /)")
 
-	UserAgent = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
+	UserAgent                  = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
+	DisableConditionalRequests = flag.Bool("disable.conditional.requests", false, "Disable conditional requests (using If-None-Match/If-Modified-Since headers)")
 
 	PrimaryHost            = flag.String("primary.host", "tcp://rtr.rpki.cloudflare.com:8282", "primary server")
 	PrimaryValidateCert    = flag.Bool("primary.tls.validate", true, "Validate TLS")
@@ -685,6 +686,8 @@ func main() {
 	log.SetLevel(lvl)
 
 	fc := utils.NewFetchConfig()
+	fc.EnableEtags = !*DisableConditionalRequests
+	fc.EnableLastModified = !*DisableConditionalRequests
 	fc.UserAgent = *UserAgent
 
 	c1 := NewClient()
