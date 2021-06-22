@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,8 @@ const (
 	METHOD_PASSWORD
 	METHOD_KEY
 )
+
+type thresholds []int64
 
 var (
 	version    = ""
@@ -133,7 +136,7 @@ var (
 		2: "secondary",
 	}
 
-	VisibilityThresholds = []int64{0, 56, 256, 596, 851, 1024, 1706, 3411}
+	visibilityThresholds = thresholds{0, 56, 256, 596, 851, 1024, 1706, 3411}
 )
 
 func init() {
@@ -143,6 +146,39 @@ func init() {
 	prometheus.MustRegister(RTRSerial)
 	prometheus.MustRegister(RTRSession)
 	prometheus.MustRegister(LastUpdate)
+
+	flag.Var(&visibilityThresholds, "visibility.thresholds", "comma-separated list of visibility thresholds to override the default")
+}
+
+// String formats an array of thresholds as a comma separated string.
+func (t *thresholds) String() string {
+	res := []byte("")
+	for idx, tr := range *t {
+		res = strconv.AppendInt(res, tr, 10)
+		if idx < len(*t)-1 {
+			res = append(res, ","...)
+		}
+	}
+	return string(res)
+}
+
+func (t *thresholds) Set(value string) error {
+	// Setting overrides current values
+	if len(*t) > 0 {
+		*t = thresholds{}
+	}
+
+	for _, tr := range strings.Split(value, ",") {
+		threshold, err := strconv.ParseInt(tr, 10, 32)
+
+		if err != nil {
+			return err
+		}
+
+		*t = append(*t, threshold)
+	}
+
+	return nil
 }
 
 func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
@@ -631,7 +667,7 @@ func (c *Comparator) Compare() {
 					"type":   "diff",
 				}).Set(float64(len(onlyIn2)))
 
-			for _, visibleFor := range VisibilityThresholds {
+			for _, visibleFor := range visibilityThresholds {
 				thresholdTimestamp := time.Now().Unix() - visibleFor
 				// Prevent differences with value 0 appearing if the process has not
 				// been running long enough for them to exist.
