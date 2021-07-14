@@ -53,7 +53,6 @@ var (
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
 
 	ExportPath = flag.String("export.path", "/rpki.json", "Export path")
-	ExportSign = flag.String("export.sign", "", "Sign export with key")
 
 	RTRVersion = flag.Int("protocol", 1, "RTR protocol version")
 	SessionID  = flag.Int("rtr.sessionid", -1, "Set session ID (if < 0: will be randomized)")
@@ -95,7 +94,7 @@ var (
 	SlurmRefresh = flag.Bool("slurm.refresh", true, "Refresh along the cache")
 
 	LogLevel   = flag.String("loglevel", "info", "Log level")
-	LogVerbose = flag.Bool("log.verbose", false, "Additional debug logs")
+	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs")
 	Version    = flag.Bool("version", false, "Print version")
 
 	NumberOfVRPs = prometheus.NewGaugeVec(
@@ -319,19 +318,8 @@ func (s *state) updateFile(file string) error {
 			Generated: vrplistjson.Metadata.Generated,
 			Valid:     vrplistjson.Metadata.Valid,
 			Serial:    int(serial),
-			/*Signature:     vrplistjson.Metadata.Signature,
-			SignatureDate: vrplistjson.Metadata.SignatureDate,*/
 		},
 		Data: vrpsjson,
-	}
-
-	if s.key != nil {
-		signdate, sign, err := s.exported.Sign(s.key)
-		if err != nil {
-			log.Error(err)
-		}
-		s.exported.Metadata.Signature = sign
-		s.exported.Metadata.SignatureDate = signdate
 	}
 
 	s.lockJson.Unlock()
@@ -440,7 +428,6 @@ type state struct {
 
 	exported prefixfile.VRPList
 	lockJson *sync.RWMutex
-	key      *ecdsa.PrivateKey
 
 	slurm *prefixfile.SlurmConfig
 
@@ -474,36 +461,6 @@ func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered i
 	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
 	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
 	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
-}
-
-func ReadPublicKey(key []byte, isPem bool) (*ecdsa.PublicKey, error) {
-	if isPem {
-		block, _ := pem.Decode(key)
-		key = block.Bytes
-	}
-
-	k, err := x509.ParsePKIXPublicKey(key)
-	if err != nil {
-		return nil, err
-	}
-	kconv, ok := k.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, errors.New("Not EDCSA public key")
-	}
-	return kconv, nil
-}
-
-func ReadKey(key []byte, isPem bool) (*ecdsa.PrivateKey, error) {
-	if isPem {
-		block, _ := pem.Decode(key)
-		key = block.Bytes
-	}
-
-	k, err := x509.ParseECPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-	return k, nil
 }
 
 func main() {
@@ -566,23 +523,6 @@ func main() {
 	}
 
 	server.SetManualSerial(s.useSerial == USE_SERIAL_FULL)
-
-	if *ExportSign != "" {
-		keyFile, err := os.Open(*ExportSign)
-		if err != nil {
-			log.Fatal(err)
-		}
-		keyBytes, err := ioutil.ReadAll(keyFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		keyFile.Close()
-		keyDec, err := ReadKey(keyBytes, true)
-		if err != nil {
-			log.Fatal(err)
-		}
-		s.key = keyDec
-	}
 
 	if enableHTTP {
 		if *ExportPath != "" {
