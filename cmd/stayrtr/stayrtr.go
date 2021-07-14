@@ -2,13 +2,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
