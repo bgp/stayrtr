@@ -79,8 +79,6 @@ var (
 	SSHAuthKeysList   = flag.String("ssh.auth.key.file", "", fmt.Sprintf("Authorized SSH key file (if blank, will use envvar %v", ENV_SSH_KEY))
 
 	TimeCheck = flag.Bool("checktime", false, "Check if file is still valid")
-	Verify    = flag.Bool("verify", false, "Check signature using provided public key (disable by default)")
-	PublicKey = flag.String("verify.key", "", "Public key path (PEM file)")
 
 	CacheBin  = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
 	UseSerial = flag.String("useserial", "disable", "Use serial contained in file (disable, startup, full)")
@@ -287,21 +285,6 @@ func (s *state) updateFile(file string) error {
 			return errors.New(fmt.Sprintf("File is expired: %v", validtime))
 		}
 	}
-	if s.verify {
-		log.Debugf("Verifying signature in %v", file)
-		if vrplistjson.Metadata.SignatureDate == "" || vrplistjson.Metadata.Signature == "" {
-			return errors.New("No signatures in file")
-		}
-
-		validdata, validdatatime, err := vrplistjson.CheckFile(s.pubkey)
-		if err != nil {
-			return err
-		}
-		if !(validdata && (validdatatime || !s.checktime)) {
-			return errors.New("Invalid signatures")
-		}
-		log.Debugf("Signature verified")
-	}
 
 	vrpsjson := vrplistjson.Data
 	if s.slurm != nil {
@@ -461,8 +444,6 @@ type state struct {
 
 	slurm *prefixfile.SlurmConfig
 
-	pubkey    *ecdsa.PublicKey
-	verify    bool
 	checktime bool
 }
 
@@ -564,25 +545,10 @@ func main() {
 	server := rtr.NewServer(sc, me, deh)
 	deh.SetVRPManager(server)
 
-	var pubkey *ecdsa.PublicKey
-	if *Verify {
-		pubkeyBytes, err := ioutil.ReadFile(*PublicKey)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		pubkey, err = ReadPublicKey(pubkeyBytes, true)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	s := state{
 		server:       server,
 		metricsEvent: me,
 		sendNotifs:   *SendNotifs,
-		pubkey:       pubkey,
-		verify:       *Verify,
 		checktime:    *TimeCheck,
 		lockJson:     &sync.RWMutex{},
 
