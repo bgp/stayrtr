@@ -450,8 +450,8 @@ RPKI-RTR protocol information
   Response time: 30 seconds
   Purge time: 60 seconds
   Protocol exchange
-    ROAs announced:  67358 IPv4   11754 IPv6
-    ROAs withdrawn:     80 IPv4      34 IPv6
+    VRPs announced:  67358 IPv4   11754 IPv6
+    VRPs withdrawn:     80 IPv4      34 IPv6
     Error Reports :      0 sent       0 rcvd
   Last protocol error
     Reason: response timeout
