@@ -78,8 +78,8 @@ var (
 	SSHAuthKeysBypass = flag.Bool("ssh.auth.key.bypass", false, "Accept any SSH key")
 	SSHAuthKeysList   = flag.String("ssh.auth.key.file", "", fmt.Sprintf("Authorized SSH key file (if blank, will use envvar %v", ENV_SSH_KEY))
 
-	TimeCheck = flag.Bool("checktime", true, "Check if file is still valid")
-	Verify    = flag.Bool("verify", true, "Check signature using provided public key (disable by passing -verify=false)")
+	TimeCheck = flag.Bool("checktime", false, "Check if file is still valid")
+	Verify    = flag.Bool("verify", false, "Check signature using provided public key (disable by default)")
 	PublicKey = flag.String("verify.key", "cf.pub", "Public key path (PEM file)")
 
 	CacheBin  = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
