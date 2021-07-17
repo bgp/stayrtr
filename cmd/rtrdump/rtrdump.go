@@ -15,7 +15,6 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"time"
 )
 
 const (
@@ -102,10 +101,6 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			log.Debugf("Received: %v", pdu)
 		}
 	case *rtr.PDUEndOfData:
-		t := time.Now().UTC().UnixNano() / 1000000000
-		c.Data.Metadata.Generated = int(t)
-		c.Data.Metadata.Valid = int(t) + int(pdu.RefreshInterval)
-		c.Data.Metadata.Serial = int(pdu.SerialNumber)
 		cs.Disconnect()
 		log.Debugf("Received: %v", pdu)
 	case *rtr.PDUCacheResponse:
