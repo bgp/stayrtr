@@ -39,10 +39,6 @@ prepare:
 clean:
 	rm -rf $(DIST_DIR)
 
-.PHONY: dist-key
-dist-key: prepare
-	cp cmd/stayrtr/cf.pub $(DIST_DIR)
-
 .PHONY: build-stayrtr
 build-stayrtr: prepare
 	go build -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go 
@@ -78,7 +74,6 @@ package-deb-stayrtr: prepare
         $(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
         package/stayrtr.service=/lib/systemd/system/stayrtr.service \
         package/stayrtr.env=/etc/default/stayrtr \
-        cmd/stayrtr/cf.pub=/usr/share/stayrtr/cf.pub \
         $(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
         $(OUTPUT_RTRMON)=/usr/bin/rtrmon
 
@@ -93,6 +88,5 @@ package-rpm-stayrtr: prepare
 	$(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
 	package/stayrtr.service=/lib/systemd/system/stayrtr.service \
 	package/stayrtr.env=/etc/default/stayrtr \
-	cmd/stayrtr/cf.pub=/usr/share/stayrtr/cf.pub \
 	$(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
 	$(OUTPUT_RTRMON)=/usr/bin/rtrmon

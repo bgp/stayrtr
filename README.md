@@ -125,8 +125,6 @@ Once you have a binary:
 $ ./stayrtr -tls.bind 127.0.0.1:8282
 ```
 
-Make sure cf.pub is in the current directory. Or pass `-verify.key=path/to/cf.pub`
-
 ## Package it
 
 If you want to package it (deb/rpm), you can use the pre-built docker-compose file.
@@ -287,16 +285,7 @@ Use your own validator, as long as the JSON source follows the following schema:
 
 By default, the session ID will be randomly generated. The serial will start at zero.
 
-You can define a serial to start with the following way:
-
-* the JSON must contain a `serial` field in `metadata`; and
-* the flag `-useserial` must be set to 1 or 2
-
-When flag is set to 1, every change of file will increment the serial regardless of the current `serial` field.
 Make sure the refresh rate of StayRTR is more frequent than the refresh rate of the JSON.
-
-When flag is set to 2, StayRTR will set the value of the serial in the JSON. If an ID is missed or not updated,
-it will cause discrepancies on the client.
 
 ## Configurations
 
