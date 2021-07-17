@@ -27,7 +27,6 @@ jobs:
       
     - name: Build
       run: |
-        make dist-key
         GOOS=linux make build-stayrtr
         GOOS=darwin make build-stayrtr
         GOOS=windows EXTENSION=.exe make build-stayrtr
