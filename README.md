@@ -96,7 +96,7 @@ $ go get github.com/bgp/stayrtr/cmd/stayrtr
 You can use the Makefile (by default it will be compiled for Linux, add `GOOS=darwin` for Mac)
 
 ```bash
-$ make dist-key build-stayrtr
+$ make build-stayrtr
 ```
 
 The compiled file will be in `/dist`.
