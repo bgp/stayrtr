@@ -306,7 +306,6 @@ func (c *Client) Start(id int, ch chan int) {
 			c.compLock.Lock()
 			c.vrps = tmpVrpMap
 			c.lastUpdate = time.Now().UTC()
-			c.serial = uint32(decoded.Metadata.Serial)
 			c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
