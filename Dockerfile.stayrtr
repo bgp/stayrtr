@@ -24,6 +24,5 @@ RUN apk --update --no-cache add ca-certificates && \
     adduser -S -D -H -h / rtr
 USER rtr
 
-COPY --from=builder ${src_dir}/stayrtr ${src_dir}/cmd/stayrtr/cf.pub /
 COPY --from=keygen /private.pem /private.pem
 ENTRYPOINT ["./stayrtr"]

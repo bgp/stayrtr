@@ -74,10 +74,9 @@ var (
 	SSHAuthKeysBypass = flag.Bool("ssh.auth.key.bypass", false, "Accept any SSH key")
 	SSHAuthKeysList   = flag.String("ssh.auth.key.file", "", fmt.Sprintf("Authorized SSH key file (if blank, will use envvar %v", ENV_SSH_KEY))
 
-	TimeCheck = flag.Bool("checktime", false, "Check if file is still valid")
+	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale")
 
 	CacheBin  = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
-	UseSerial = flag.String("useserial", "disable", "Use serial contained in file (disable, startup, full)")
 
 	Etag            = flag.Bool("etag", true, "Enable Etag header")
 	LastModified    = flag.Bool("last.modified", true, "Enable Last-Modified header")
@@ -267,18 +266,14 @@ func (s *state) updateFile(file string) error {
 		return err
 	}
 
-	if s.useSerial == USE_SERIAL_START || s.useSerial == USE_SERIAL_FULL {
-		//if serial, _ := s.server.GetCurrentSerial(sessid); vrplistjson.Metadata.Serial != 0 && serial != vrplistjson.Metadata.Serial  {
-		if _, valid := s.server.GetCurrentSerial(sessid); !valid || s.useSerial == USE_SERIAL_FULL {
-			// Set serial at beginning
-			s.server.SetSerial(uint32(vrplistjson.Metadata.Serial))
-		}
-	}
-
 	if s.checktime {
-		validtime := time.Unix(int64(vrplistjson.Metadata.Valid), 0).UTC()
-		if time.Now().UTC().After(validtime) {
-			return errors.New(fmt.Sprintf("File is expired: %v", validtime))
+		buildtime, err := time.Parse(time.RFC3339, vrplistjson.Metadata.Buildtime)
+		if err != nil {
+			return err
+		}
+		notafter := buildtime.Add(time.Hour * 24)
+		if time.Now().UTC().After(notafter) {
+			return errors.New(fmt.Sprintf("VRP JSON file is older than 24 hours: %v", buildtime))
 		}
 	}
 
@@ -312,9 +307,7 @@ func (s *state) updateFile(file string) error {
 	s.exported = prefixfile.VRPList{
 		Metadata: prefixfile.MetaData{
 			Counts:    len(vrpsjson),
-			Generated: vrplistjson.Metadata.Generated,
-			Valid:     vrplistjson.Metadata.Valid,
-			Serial:    int(serial),
+			Buildtime: vrplistjson.Metadata.Buildtime,
 		},
 		Data: vrpsjson,
 	}
@@ -512,14 +505,6 @@ func main() {
 	s.fetchConfig.Mime = *Mime
 	s.fetchConfig.EnableEtags = *Etag
 	s.fetchConfig.EnableLastModified = *LastModified
-
-	if serialId, ok := serialToId[*UseSerial]; ok {
-		s.useSerial = serialId
-	} else {
-		log.Fatalf("Serial configuration %s is unknown", *UseSerial)
-	}
-
-	server.SetManualSerial(s.useSerial == USE_SERIAL_FULL)
 
 	if enableHTTP {
 		if *ExportPath != "" {
