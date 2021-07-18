@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 )
 
 type VRPJson struct {
@@ -28,16 +26,6 @@ type VRPList struct {
 
 func (vrp *VRPJson) GetASN2() (uint32, error) {
 	switch asnc := vrp.ASN.(type) {
-	case string:
-		asnStr := strings.TrimLeft(asnc, "aAsS")
-		asnInt, err := strconv.ParseUint(asnStr, 10, 32)
-		if err != nil {
-			return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of VRP", vrp.ASN))
-		}
-		asn := uint32(asnInt)
-		return asn, nil
-	case float64:
-		return uint32(asnc), nil
 	case int:
 		return uint32(asnc), nil
 	default:

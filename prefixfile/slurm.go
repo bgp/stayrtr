@@ -2,7 +2,6 @@ package prefixfile
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 )
@@ -18,9 +17,6 @@ func (pf *SlurmPrefixFilter) GetASN() (uint32, bool) {
 		return 0, true
 	} else {
 		switch asn := pf.ASN.(type) {
-		case json.Number:
-			c, _ := asn.Int64()
-			return uint32(c), false
 		case uint32:
 			return asn, false
 		default:
@@ -144,7 +140,7 @@ func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
 			maxLength = size
 		}
 		vrps = append(vrps, VRPJson{
-			ASN:    fmt.Sprintf("AS%v", assertion.ASN),
+			ASN:    assertion.ASN,
 			Prefix: assertion.Prefix,
 			Length: uint8(maxLength),
 			TA:     assertion.Comment,

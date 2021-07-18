@@ -7,7 +7,7 @@ StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) b
 This project is not affiliated with Cloudflare and any references to Cloudflare are simply a function of forking. We do love the Cloudyflares though!
 
 * `/lib` contains a library to create your own server and client.
-* `/prefixfile` contains the structure of a JSON export file and signing capabilities.
+* `/prefixfile` contains the structure of a JSON export file.
 * `/cmd/stayrtr/stayrtr.go` is a simple implementation that fetches a list and offers it to a router.
 * `/cmd/rtrdump/rtrdump.go` allows copying the PDUs sent by a RTR server as a JSON file.
 * `/cmd/rtrmon/rtrmon.go` compare and monitor two RTR servers (using RTR and/or JSON), outputs diff and Prometheus metrics.
@@ -106,16 +106,6 @@ Or you can use a package (or binary) file from the [Releases page](https://githu
 ```bash
 $ sudo dpkg -i stayrtr[...].deb
 $ sudo systemctl start stayrtr
-```
-
-If you want to sign your list of prefixes, generate an ECDSA key.
-Then generate the public key to be used in StayRTR.
-You will have to setup your validator to use this key or have another
-tool to sign the JSON file before passing it to StayRTR.
-
-```bash
-$ openssl ecparam -genkey -name prime256v1 -noout -outform pem > private.pem
-$ openssl ec -in private.pem -pubout -outform pem > public.pem
 ```
 
 ## Run it
@@ -269,11 +259,15 @@ Use your own validator, as long as the JSON source follows the following schema:
 
 ```
 {
+  "metadata": {
+    "buildtime": "2021-07-18T13:36:26Z"
+    ...
+  },
   "roas": [
     {
       "prefix": "10.0.0.0/24",
       "maxLength": 24,
-      "asn": "AS65001"
+      "asn": 65001
     },
     ...
   ]
