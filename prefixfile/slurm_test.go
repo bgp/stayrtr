@@ -97,6 +97,11 @@ func TestFilterOnVRPs(t *testing.T) {
 			Prefix: "10.0.0.0/24",
 			Length: 24,
 		},
+		VRPJson{
+			ASN:    uint32(65005),
+			Prefix: "10.1.0.0/24",
+			Length: 16, // this VRP is broken, maxlength can't be smaller than plen
+		},
 	}
 
 	slurm := SlurmValidationOutputFilters{
@@ -115,8 +120,9 @@ func TestFilterOnVRPs(t *testing.T) {
 	}
 	added, removed := slurm.FilterOnVRPs(vrps)
 	assert.Len(t, added, 1)
-	assert.Len(t, removed, 3)
+	assert.Len(t, removed, 4)
 	assert.Equal(t, uint32(65001), removed[0].GetASN())
+	assert.Equal(t, uint32(65005), removed[3].GetASN())
 }
 
 func TestAssertVRPs(t *testing.T) {
