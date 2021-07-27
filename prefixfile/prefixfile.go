@@ -9,16 +9,16 @@ import (
 )
 
 type VRPJson struct {
-	Prefix string      `json:"prefix"`
-	Length uint8       `json:"maxLength"`
-	ASN    interface{} `json:"asn"`
-	TA     string      `json:"ta,omitempty"`
-	Expires int        `json:"expires"`
+	Prefix  string      `json:"prefix"`
+	Length  uint8       `json:"maxLength"`
+	ASN     interface{} `json:"asn"`
+	TA      string      `json:"ta,omitempty"`
+	Expires int         `json:"expires,omitempty"`
 }
 
 type MetaData struct {
 	Counts        int    `json:"vrps"`
-	Buildtime     string `json:"buildtime"`
+	Buildtime     string `json:"buildtime,omitempty"`
 }
 
 type VRPList struct {
@@ -32,26 +32,24 @@ func (vrp *VRPJson) GetASN2() (uint32, error) {
 		asnStr := strings.TrimLeft(asnc, "aAsS")
 		asnInt, err := strconv.ParseUint(asnStr, 10, 32)
 		if err != nil {
-			return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of VRP", vrp.ASN))
+			return 0, errors.New(fmt.Sprintf("Could not decode ASN string: %v", vrp.ASN))
 		}
 		asn := uint32(asnInt)
 		return asn, nil
+	case uint32:
+		return asnc, nil
 	case float64:
 		return uint32(asnc), nil
 	case int:
 		return uint32(asnc), nil
 	default:
-		return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v as part of VRP", vrp.ASN))
+		return 0, errors.New(fmt.Sprintf("Could not decode ASN: %v", vrp.ASN))
 	}
 }
 
 func (vrp *VRPJson) GetASN() uint32 {
 	asn, _ := vrp.GetASN2()
 	return asn
-}
-
-func (vrp *VRPJson) SetASN(asn uint32) {
-	vrp.ASN = fmt.Sprintf("AS%v", asn)
 }
 
 func (vrp *VRPJson) GetPrefix2() (*net.IPNet, error) {

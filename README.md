@@ -273,7 +273,7 @@ Use your own validator, as long as the JSON source follows the following schema:
     {
       "prefix": "10.0.0.0/24",
       "maxLength": 24,
-      "asn": "AS65001"
+      "asn": 65001
     },
     ...
   ]
