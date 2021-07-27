@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -180,6 +181,16 @@ func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	return &vrplistjson, err
 }
 
+func checkPrefixLengths(prefix *net.IPNet, maxLength uint8) (bool) {
+	plen, max := net.IPMask.Size(prefix.Mask)
+
+	if (uint8(plen) > maxLength || maxLength > uint8(max)) {
+		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
+		return false
+	}
+	return true
+}
+
 func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 	filterDuplicates := make(map[string]bool)
 
@@ -200,12 +211,16 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 			continue
 		}
 
-		count++
+		if !checkPrefixLengths(prefix, v.Length) {
+			continue
+		}
+
 		if prefix.IP.To4() != nil {
 			countv4++
 		} else if prefix.IP.To16() != nil {
 			countv6++
 		}
+		count++
 
 		key := fmt.Sprintf("%s,%d,%d", prefix, asn, v.Length)
 		_, exists := filterDuplicates[key]
