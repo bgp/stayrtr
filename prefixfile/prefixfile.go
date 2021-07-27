@@ -55,7 +55,7 @@ func (vrp *VRPJson) GetASN() uint32 {
 func (vrp *VRPJson) GetPrefix2() (*net.IPNet, error) {
 	_, prefix, err := net.ParseCIDR(vrp.Prefix)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not decode prefix: %v as part of VRP", vrp.Prefix))
+		return nil, errors.New(fmt.Sprintf("Could not decode prefix: %v", vrp.Prefix))
 	}
 	return prefix, nil
 }
