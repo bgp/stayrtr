@@ -78,24 +78,29 @@ func TestDecodeJSON(t *testing.T) {
 func TestFilterOnVRPs(t *testing.T) {
 	vrps := []VRPJson{
 		VRPJson{
-			ASN:    "AS65001",
+			ASN:    uint32(65001),
 			Prefix: "192.168.0.0/25",
 			Length: 25,
 		},
 		VRPJson{
-			ASN:    "AS65002",
+			ASN:    uint32(65002),
 			Prefix: "192.168.1.0/24",
 			Length: 24,
 		},
 		VRPJson{
-			ASN:    "AS65003",
+			ASN:    uint32(65003),
 			Prefix: "192.168.2.0/24",
 			Length: 24,
 		},
 		VRPJson{
-			ASN:    "AS65004",
+			ASN:    uint32(65004),
 			Prefix: "10.0.0.0/24",
 			Length: 24,
+		},
+		VRPJson{
+			ASN:    uint32(65005),
+			Prefix: "10.1.0.0/24",
+			Length: 16, // this VRP is broken, maxlength can't be smaller than plen
 		},
 	}
 
@@ -115,8 +120,9 @@ func TestFilterOnVRPs(t *testing.T) {
 	}
 	added, removed := slurm.FilterOnVRPs(vrps)
 	assert.Len(t, added, 1)
-	assert.Len(t, removed, 3)
+	assert.Len(t, removed, 4)
 	assert.Equal(t, uint32(65001), removed[0].GetASN())
+	assert.Equal(t, uint32(65005), removed[3].GetASN())
 }
 
 func TestAssertVRPs(t *testing.T) {

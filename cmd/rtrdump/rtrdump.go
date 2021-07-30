@@ -79,7 +79,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 	case *rtr.PDUIPv4Prefix:
 		rj := prefixfile.VRPJson{
 			Prefix: pdu.Prefix.String(),
-			ASN:    fmt.Sprintf("AS%v", pdu.ASN),
+			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
 		}
 		c.Data.Data = append(c.Data.Data, rj)
@@ -91,7 +91,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 	case *rtr.PDUIPv6Prefix:
 		rj := prefixfile.VRPJson{
 			Prefix: pdu.Prefix.String(),
-			ASN:    fmt.Sprintf("AS%v", pdu.ASN),
+			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
 		}
 		c.Data.Data = append(c.Data.Data, rj)
