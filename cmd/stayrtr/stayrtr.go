@@ -75,23 +75,23 @@ var (
 	SSHAuthKeysBypass = flag.Bool("ssh.auth.key.bypass", false, "Accept any SSH key")
 	SSHAuthKeysList   = flag.String("ssh.auth.key.file", "", fmt.Sprintf("Authorized SSH key file (if blank, will use envvar %v", ENV_SSH_KEY))
 
-	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale")
+	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale (disable by passing -checktime=false)")
 
-	CacheBin  = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
+	CacheBin = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
 
-	Etag            = flag.Bool("etag", true, "Enable Etag header")
-	LastModified    = flag.Bool("last.modified", true, "Enable Last-Modified header")
+	Etag            = flag.Bool("etag", true, "Control usage of Etag header (disable with -etag=false)")
+	LastModified    = flag.Bool("last.modified", true, "Control usage of Last-Modified header (disable with -last.modified=false)")
 	UserAgent       = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	Mime            = flag.String("mime", "application/json", "Accept setting format (some servers may prefer text/json)")
 	RefreshInterval = flag.Int("refresh", 600, "Refresh interval in seconds")
 	MaxConn         = flag.Int("maxconn", 0, "Max simultaneous connections (0 to disable limit)")
-	SendNotifs      = flag.Bool("notifications", true, "Send notifications to clients")
+	SendNotifs      = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
 
 	Slurm        = flag.String("slurm", "", "Slurm configuration file (filters and assertions)")
-	SlurmRefresh = flag.Bool("slurm.refresh", true, "Refresh along the cache")
+	SlurmRefresh = flag.Bool("slurm.refresh", true, "Refresh along the cache (disable with -slurm.refresh=false)")
 
 	LogLevel   = flag.String("loglevel", "info", "Log level")
-	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs")
+	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
 	NumberOfVRPs = prometheus.NewGaugeVec(
@@ -181,10 +181,10 @@ func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	return &vrplistjson, err
 }
 
-func checkPrefixLengths(prefix *net.IPNet, maxLength uint8) (bool) {
+func checkPrefixLengths(prefix *net.IPNet, maxLength uint8) bool {
 	plen, max := net.IPMask.Size(prefix.Mask)
 
-	if (uint8(plen) > maxLength || maxLength > uint8(max)) {
+	if uint8(plen) > maxLength || maxLength > uint8(max) {
 		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
 		return false
 	}
