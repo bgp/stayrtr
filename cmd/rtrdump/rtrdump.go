@@ -6,15 +6,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
+	"strings"
+
+	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/prefixfile"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -127,6 +129,10 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Printf("%s: illegal positional argument(s) provided (\"%s\") - did you mean to provide a flag?\n", os.Args[0], strings.Join(flag.Args(), " "))
+		os.Exit(2)
+	}
 	if *Version {
 		fmt.Println(AppVersion)
 		os.Exit(0)

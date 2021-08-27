@@ -487,6 +487,10 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Printf("%s: illegal positional argument(s) provided (\"%s\") - did you mean to provide a flag?\n", os.Args[0], strings.Join(flag.Args(), " "))
+		os.Exit(2)
+	}
 	if *Version {
 		fmt.Println(AppVersion)
 		os.Exit(0)
