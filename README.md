@@ -261,7 +261,7 @@ You can check the content provided over RTR with rtrdump tool
 $ ./rtrdump -connect 127.0.0.1:8282 -file debug.json
 ```
 
-You can also fetch the re-generated JSON from the `-export.path` endpoint (default: `http://localhost:8080/rpki.json`)
+You can also fetch the re-generated JSON from the `-export.path` endpoint (default: `http://localhost:9847/rpki.json`)
 
 ### Data sources
 
