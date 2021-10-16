@@ -26,9 +26,10 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./
-          file: ./Dockerfile.stayrtr.prod
+          file: ./Dockerfile
           push: true
-          tags: rpki/stayrtr:latest
+          tags: rpki/stayrtr:latest,rpki/stayrtr:${GITHUB_SHA::8}
+          target: stayrtr
 
       - name: Image digest (stayrtr)
         run: echo ${{ steps.docker_build_stayrtr.outputs.digest }}
@@ -38,9 +39,10 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./
-          file: ./Dockerfile.rtrmon.prod
+          file: ./Dockerfile
           push: true
-          tags: rpki/rtrmon:latest
+          tags: rpki/rtrmon:latest,rpki/rtrmon:${GITHUB_SHA::8}
+          target: rtrmon
 
       - name: Image digest (rtrmon)
         run: echo ${{ steps.docker_build_rtrmon.outputs.digest }}
@@ -50,9 +52,10 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./
-          file: ./Dockerfile.rtrdump.prod
+          file: ./Dockerfile
           push: true
-          tags: rpki/rtrdump:latest
+          tags: rpki/rtrdump:latest,rpki/rtrdump:${GITHUB_SHA::8}
+          target: rtrdump
 
       - name: Image digest (rtrdump)
         run: echo ${{ steps.docker_build_rtrdump.outputs.digest }}

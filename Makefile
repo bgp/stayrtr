@@ -4,7 +4,7 @@ GOOS ?= linux
 ARCH ?= $(shell uname -m)
 BUILDINFOSDET ?= 
 
-DOCKER_REPO   := bgp/
+DOCKER_REPO   := rpki/
 STAYRTR_NAME    := stayrtr
 STAYRTR_VERSION := $(shell git describe --tags $(git rev-list --tags --max-count=1))
 VERSION_PKG   := $(shell echo $(STAYRTR_VERSION) | sed 's/^v//g')
@@ -13,14 +13,16 @@ LICENSE       := BSD-3
 URL           := https://github.com/bgp/stayrtr
 DESCRIPTION   := StayRTR: a RPKI-to-Router server
 BUILDINFOS    :=  ($(shell date +%FT%T%z)$(BUILDINFOSDET))
-LDFLAGS       := '-X main.version=$(STAYRTR_VERSION) -X main.buildinfos=$(BUILDINFOS)'
+LDFLAGS       ?= '-X main.version=$(STAYRTR_VERSION) -X main.buildinfos=$(BUILDINFOS)'
 
 RTRDUMP_NAME  := rtrdump
 RTRMON_NAME   := rtrmon
 
-OUTPUT_STAYRTR := $(DIST_DIR)stayrtr-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
-OUTPUT_RTRDUMP := $(DIST_DIR)rtrdump-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
-OUTPUT_RTRMON := $(DIST_DIR)rtrmon-$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
+SUFFIX ?= -$(STAYRTR_VERSION)-$(GOOS)-$(ARCH)$(EXTENSION)
+
+OUTPUT_STAYRTR := $(DIST_DIR)stayrtr$(SUFFIX)
+OUTPUT_RTRDUMP := $(DIST_DIR)rtrdump$(SUFFIX)
+OUTPUT_RTRMON := $(DIST_DIR)rtrmon$(SUFFIX)
 
 .PHONY: vet
 vet:
@@ -39,29 +41,26 @@ prepare:
 clean:
 	rm -rf $(DIST_DIR)
 
+.PHONY: build-all
+build-all: build-stayrtr build-rtrdump build-rtrmon
+
 .PHONY: build-stayrtr
 build-stayrtr: prepare
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go 
+	go build -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go
 
 .PHONY: build-rtrdump
 build-rtrdump:
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRDUMP) cmd/rtrdump/rtrdump.go 
+	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRDUMP) cmd/rtrdump/rtrdump.go
 
 .PHONY: build-rtrmon
 build-rtrmon:
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRMON) cmd/rtrmon/rtrmon.go 
+	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRMON) cmd/rtrmon/rtrmon.go
 
-.PHONY: docker-stayrtr
-docker-stayrtr:
-	docker build -t $(DOCKER_REPO)$(STAYRTR_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.stayrtr .
-
-.PHONY: docker-rtrdump
-docker-rtrdump:
-	docker build -t $(DOCKER_REPO)$(RTRDUMP_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrdump .
-
-.PHONY: docker-rtrmon
-docker-rtrmon:
-	docker build -t $(DOCKER_REPO)$(RTRMON_NAME):$(STAYRTR_VERSION) --build-arg LDFLAGS=$(LDFLAGS) -f Dockerfile.rtrmon .
+.PHONY: docker
+docker:
+	docker build -t $(DOCKER_REPO)$(STAYRTR_NAME) --target stayrtr .
+	docker build -t $(DOCKER_REPO)$(RTRDUMP_NAME) --target rtrdump .
+	docker build -t $(DOCKER_REPO)$(RTRMON_NAME) --target rtrmon .
 
 .PHONY: package-deb-stayrtr
 package-deb-stayrtr: prepare
