@@ -89,7 +89,7 @@ var (
 	VRPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_vrps",
-			Help: "Total number of VRPS/amount of differents.",
+			Help: "Total number of current VRPS in primary/secondary and current difference between primary and secondary.",
 		},
 		[]string{"server", "url", "type"},
 	)
