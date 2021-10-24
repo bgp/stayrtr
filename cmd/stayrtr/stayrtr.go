@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -612,7 +611,7 @@ func main() {
 		}()
 	}
 	if *BindSSH != "" {
-		sshkey, err := ioutil.ReadFile(*SSHKey)
+		sshkey, err := os.ReadFile(*SSHKey)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -647,7 +646,7 @@ func main() {
 			if *SSHAuthKeysList == "" {
 				sshClientKeysToDecode = os.Getenv(ENV_SSH_KEY)
 			} else {
-				sshClientKeysToDecodeBytes, err := ioutil.ReadFile(*SSHAuthKeysList)
+				sshClientKeysToDecodeBytes, err := os.ReadFile(*SSHAuthKeysList)
 				if err != nil {
 					log.Fatal(err)
 				}
