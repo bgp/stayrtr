@@ -43,7 +43,7 @@ var (
 	AppVersion = "RTRmon " + version + " " + buildinfos
 
 	OneOff      = flag.Bool("oneoff", false, "dump as json and exits")
-	Addr        = flag.String("addr", ":8080", "Server address")
+	Addr        = flag.String("addr", ":9866", "Server address")
 	MetricsPath = flag.String("metrics", "/metrics", "Metrics path")
 	OutFile     = flag.String("file", "diff.json", "Diff file (or URL path without /)")
 
