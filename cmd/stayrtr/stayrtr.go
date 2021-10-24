@@ -46,7 +46,7 @@ var (
 	buildinfos = ""
 	AppVersion = "StayRTR " + version + " " + buildinfos
 
-	MetricsAddr = flag.String("metrics.addr", ":8080", "Metrics address")
+	MetricsAddr = flag.String("metrics.addr", ":9847", "Metrics address")
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
 
 	ExportPath = flag.String("export.path", "/rpki.json", "Export path")
