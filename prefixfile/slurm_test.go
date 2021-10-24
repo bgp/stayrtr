@@ -2,8 +2,9 @@ package prefixfile
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDecodeJSON(t *testing.T) {
@@ -77,27 +78,27 @@ func TestDecodeJSON(t *testing.T) {
 
 func TestFilterOnVRPs(t *testing.T) {
 	vrps := []VRPJson{
-		VRPJson{
+		{
 			ASN:    uint32(65001),
 			Prefix: "192.168.0.0/25",
 			Length: 25,
 		},
-		VRPJson{
+		{
 			ASN:    uint32(65002),
 			Prefix: "192.168.1.0/24",
 			Length: 24,
 		},
-		VRPJson{
+		{
 			ASN:    uint32(65003),
 			Prefix: "192.168.2.0/24",
 			Length: 24,
 		},
-		VRPJson{
+		{
 			ASN:    uint32(65004),
 			Prefix: "10.0.0.0/24",
 			Length: 24,
 		},
-		VRPJson{
+		{
 			ASN:    uint32(65005),
 			Prefix: "10.1.0.0/24",
 			Length: 16, // this VRP is broken, maxlength can't be smaller than plen
@@ -106,14 +107,14 @@ func TestFilterOnVRPs(t *testing.T) {
 
 	slurm := SlurmValidationOutputFilters{
 		PrefixFilters: []SlurmPrefixFilter{
-			SlurmPrefixFilter{
+			{
 				Prefix: "10.0.0.0/8",
 			},
-			SlurmPrefixFilter{
+			{
 				ASN:    uint32(65001),
 				Prefix: "192.168.0.0/24",
 			},
-			SlurmPrefixFilter{
+			{
 				ASN: uint32(65002),
 			},
 		},
@@ -128,16 +129,16 @@ func TestFilterOnVRPs(t *testing.T) {
 func TestAssertVRPs(t *testing.T) {
 	slurm := SlurmLocallyAddedAssertions{
 		PrefixAssertions: []SlurmPrefixAssertion{
-			SlurmPrefixAssertion{
+			{
 				ASN:     uint32(65001),
 				Prefix:  "10.0.0.0/8",
 				Comment: "Hello",
 			},
-			SlurmPrefixAssertion{
+			{
 				ASN:    uint32(65001),
 				Prefix: "192.168.0.0/24",
 			},
-			SlurmPrefixAssertion{
+			{
 				ASN:             uint32(65003),
 				Prefix:          "192.168.0.0/25",
 				MaxPrefixLength: 26,
