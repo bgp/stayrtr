@@ -1,5 +1,6 @@
 # StayRTR
 
+![animated stayrtr logo](stayrtr.gif)
 
 StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) based on GoRTR using the [the Go Programming Language](http://golang.org/). The maintainer of GoRTR got a new job, so we decided to hard fork.
 
