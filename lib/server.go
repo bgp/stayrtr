@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func GenerateSessionId() uint16 {
@@ -614,7 +615,6 @@ func (s *Server) loopTCP(tcplist net.Listener, logEnv string, clientCallback Cli
 			}
 		}
 	}
-	return nil
 }
 
 func (s *Server) StartSSH(bind string, config *ssh.ServerConfig) error {
