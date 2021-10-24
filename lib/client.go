@@ -4,10 +4,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 type RTRClientSessionEventHandler interface {
@@ -221,5 +222,5 @@ func (c *ClientSession) Start(addr string, connType int, configTLS *tls.Config, 
 	} else {
 		return errors.New(fmt.Sprintf("Unknown type %v", connType))
 	}
-	return nil
+
 }
