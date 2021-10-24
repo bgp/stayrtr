@@ -212,15 +212,14 @@ func (c *ClientSession) StartSSH(addr string, config *ssh.ClientConfig) error {
 }
 
 func (c *ClientSession) Start(addr string, connType int, configTLS *tls.Config, configSSH *ssh.ClientConfig) error {
-
-	if connType == TYPE_TLS {
+	switch connType {
+	case TYPE_TLS:
 		return c.StartTLS(addr, configTLS)
-	} else if connType == TYPE_PLAIN {
+	case TYPE_PLAIN:
 		return c.StartPlain(addr)
-	} else if connType == TYPE_SSH {
+	case TYPE_SSH:
 		return c.StartSSH(addr, configSSH)
-	} else {
+	default:
 		return errors.New(fmt.Sprintf("Unknown type %v", connType))
 	}
-
 }
