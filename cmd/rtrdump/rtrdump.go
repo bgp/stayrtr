@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -189,7 +188,7 @@ func main() {
 				keyBytesStr := os.Getenv(ENV_SSH_KEY)
 				keyBytes = []byte(keyBytesStr)
 			} else {
-				keyBytes, err = ioutil.ReadFile(*SSHAuthKey)
+				keyBytes, err = os.ReadFile(*SSHAuthKey)
 				if err != nil {
 					log.Fatal(err)
 				}

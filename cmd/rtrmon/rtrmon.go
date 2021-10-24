@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -810,7 +809,7 @@ func main() {
 			keyBytesStr := os.Getenv(fmt.Sprintf("%s_1", ENV_SSH_KEY))
 			keyBytes = []byte(keyBytesStr)
 		} else {
-			keyBytes, err = ioutil.ReadFile(*PrimarySSHAuthKey)
+			keyBytes, err = os.ReadFile(*PrimarySSHAuthKey)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -842,7 +841,7 @@ func main() {
 			keyBytesStr := os.Getenv(fmt.Sprintf("%s_2", ENV_SSH_KEY))
 			keyBytes = []byte(keyBytesStr)
 		} else {
-			keyBytes, err = ioutil.ReadFile(*SecondarySSHAuthKey)
+			keyBytes, err = os.ReadFile(*SecondarySSHAuthKey)
 			if err != nil {
 				log.Fatal(err)
 			}

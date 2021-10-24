@@ -1,6 +1,6 @@
 module github.com/bgp/stayrtr
 
-go 1.12
+go 1.16
 
 require (
 	github.com/prometheus/client_golang v0.9.2

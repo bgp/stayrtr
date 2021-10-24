@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -161,7 +160,7 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 			return nil, -1, false, err
 		}
 	}
-	data, err := ioutil.ReadAll(f)
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return nil, -1, false, err
 	}
