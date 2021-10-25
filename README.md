@@ -263,6 +263,45 @@ $ ./rtrdump -connect 127.0.0.1:8282 -file debug.json
 
 You can also fetch the re-generated JSON from the `-export.path` endpoint (default: `http://localhost:9847/rpki.json`)
 
+## Monitoring rtr and JSON endpoints
+
+With `rtrmon` you can monitor the difference between rtr and/or JSON endpoints.
+You can use this to, for example, track that your StayRTR instance is still in
+sync with your RP instance. Or to track that multiple RP instances are in sync.
+
+If your CA software has an endpoint that exposes objects in the standard JSON
+format, you can even make sure that the objects that your CA software should
+generate actually are visible to RPs, to monitor the full cycle.
+
+```
+$ ./rtrmon \
+  -primary.host tcp://rtr.rpki.cloudflare.com:8282 \
+  -secondary.host https://console.rpki-client.org/vrps.json \
+  -secondary.refresh 30s \
+  -primary.refresh 30s \
+```
+
+By default the Prometheus endpoint is on `http://[host]:9866/metrics`.
+Among others, this endpoint contains the following metrics:
+
+  * `rpki_vrps`: Current number of VRPS and current difference between the primary and secondary.
+  * `rtr_serial`: Serial of the rtr session (when applicable).
+  * `rtr_ression`: Session ID of the RTR session.
+  * `rtr_state`: State of the rtr session (up/down).
+  * `update`: Timestamp of the last update.
+  * `vrp_diff`: The number of VRPs which were seen in `lhs` at least `visibility_seconds` ago not in `rhs`.
+
+Using these metrics you can visualise or alert on, for example:
+
+  * Unexpected behaviour
+    * Did the number of VRPs drop more than 10% compared to the 24h average?
+  * Liveliness
+    * Is the RTR serial increasing?
+    * Is rtrmon still getting updates?
+  * Convergence
+    * Do both my RP instances see the same objects eventually?
+    * Are objects first visible in the JSON `difference` (e.g. 1706) seconds ago visible in RTR?
+
 ### Data sources
 
 Use your own validator, as long as the JSON source follows the following schema:
