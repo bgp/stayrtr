@@ -346,7 +346,6 @@ func (s *Server) SetSerial(serial uint32) {
 
 func (s *Server) AddVRPs(vrps []VRP) {
 	s.vrplock.RLock()
-	curDiff := make([]VRP, 0)
 
 	vrpCurrent := s.vrpCurrent
 
@@ -356,7 +355,7 @@ func (s *Server) AddVRPs(vrps []VRP) {
 	} else if s.log != nil {
 		s.log.Debugf("Computed diff: added (%d), removed (%d), unchanged (%d)", len(added), len(removed), len(unchanged))
 	}
-	curDiff = append(added, removed...)
+	curDiff := append(added, removed...)
 	s.vrplock.RUnlock()
 
 	s.AddVRPsDiff(curDiff)
