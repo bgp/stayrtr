@@ -628,9 +628,9 @@ func main() {
 			if password == "" {
 				password = os.Getenv(ENV_SSH_PASSWORD)
 			}
-			sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, suppliedPassword []byte) (*ssh.Permissions, error) {
 				log.Infof("Connected (ssh-password): %v/%v", conn.User(), conn.RemoteAddr())
-				if conn.User() != *SSHAuthUser || !bytes.Equal(password, []byte(*SSHAuthPassword)) {
+				if conn.User() != *SSHAuthUser || !bytes.Equal(suppliedPassword, []byte(password)) {
 					log.Warnf("Wrong user or password for %v/%v. Disconnecting.", conn.User(), conn.RemoteAddr())
 					return nil, errors.New("Wrong user or password")
 				}
