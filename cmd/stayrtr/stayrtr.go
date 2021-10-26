@@ -485,6 +485,13 @@ func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered i
 }
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	flag.Parse()
@@ -701,4 +708,5 @@ func main() {
 
 	s.routineUpdate(*CacheBin, *RefreshInterval, slurmFile)
 
+	return nil
 }
