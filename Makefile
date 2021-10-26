@@ -46,15 +46,15 @@ build-all: build-stayrtr build-rtrdump build-rtrmon
 
 .PHONY: build-stayrtr
 build-stayrtr: prepare
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go
+	go build -trimpath -ldflags $(LDFLAGS) -o $(OUTPUT_STAYRTR) cmd/stayrtr/stayrtr.go
 
 .PHONY: build-rtrdump
 build-rtrdump:
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRDUMP) cmd/rtrdump/rtrdump.go
+	go build -trimpath -ldflags $(LDFLAGS) -o $(OUTPUT_RTRDUMP) cmd/rtrdump/rtrdump.go
 
 .PHONY: build-rtrmon
 build-rtrmon:
-	go build -ldflags $(LDFLAGS) -o $(OUTPUT_RTRMON) cmd/rtrmon/rtrmon.go
+	go build -trimpath -ldflags $(LDFLAGS) -o $(OUTPUT_RTRMON) cmd/rtrmon/rtrmon.go
 
 .PHONY: docker
 docker:
