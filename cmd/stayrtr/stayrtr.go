@@ -379,6 +379,10 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	signal.Notify(signals, syscall.SIGHUP)
 	for {
 		delay := time.NewTimer(time.Duration(interval) * time.Second)
+		if (s.lastchange.IsZero()) {
+			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
+			delay = time.NewTimer(time.Duration(30) * time.Second)
+		}
 		select {
 		case <-delay.C:
 		case <-signals:
@@ -536,6 +540,7 @@ func run() error {
 
 	s := state{
 		server:       server,
+		lastdata:    &prefixfile.VRPList{},
 		metricsEvent: me,
 		sendNotifs:   *SendNotifs,
 		checktime:    *TimeCheck,
