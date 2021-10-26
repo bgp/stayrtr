@@ -180,24 +180,29 @@ func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	return &vrplistjson, err
 }
 
-func checkPrefixLengths(prefix *net.IPNet, maxLength uint8) bool {
+func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 	plen, max := net.IPMask.Size(prefix.Mask)
 
-	if uint8(plen) > maxLength || maxLength > uint8(max) {
+	if plen == 0 || uint8(plen) > maxLength || maxLength > uint8(max) {
 		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
 		return false
 	}
 	return true
 }
 
+// processData will take a slice of prefix.VRPJson and attempt to convert them to a slice of rtr.VRP.
+// Will check the following:
+// 1 - The prefix is a valid prefix
+// 2 - The ASN is a valid ASN
+// 3 - The MaxLength is valid
+// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, and IPv6 VRPs
 func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 	filterDuplicates := make(map[string]bool)
 
-	vrplist := make([]rtr.VRP, 0)
-
-	var count int
+	var vrplist []rtr.VRP
 	var countv4 int
 	var countv6 int
+
 	for _, v := range vrplistjson {
 		prefix, err := v.GetPrefix2()
 		if err != nil {
@@ -210,24 +215,22 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 			continue
 		}
 
-		if !checkPrefixLengths(prefix, v.Length) {
+		if !isValidPrefixLength(prefix, v.Length) {
 			continue
 		}
 
 		if prefix.IP.To4() != nil {
 			countv4++
-		} else if prefix.IP.To16() != nil {
+		} else {
 			countv6++
 		}
-		count++
 
 		key := fmt.Sprintf("%s,%d,%d", prefix, asn, v.Length)
 		_, exists := filterDuplicates[key]
-		if !exists {
-			filterDuplicates[key] = true
-		} else {
+		if exists {
 			continue
 		}
+		filterDuplicates[key] = true
 
 		vrp := rtr.VRP{
 			Prefix: *prefix,
@@ -236,7 +239,7 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 		}
 		vrplist = append(vrplist, vrp)
 	}
-	return vrplist, count, countv4, countv6
+	return vrplist, countv4 + countv6, countv4, countv6
 }
 
 type IdenticalFile struct {
@@ -272,8 +275,7 @@ func (s *state) updateFromNewState() error {
 
 	vrps, count, countv4, countv6 := processData(vrpsjson)
 
-	log.Infof("New update (%v uniques, %v total prefixes).",
-		len(vrps), count)
+	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
 
 	s.server.AddVRPs(vrps)
 
