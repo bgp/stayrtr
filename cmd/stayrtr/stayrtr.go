@@ -536,6 +536,7 @@ func run() error {
 
 	s := state{
 		server:       server,
+		lastdata:    &prefixfile.VRPList{},
 		metricsEvent: me,
 		sendNotifs:   *SendNotifs,
 		checktime:    *TimeCheck,
