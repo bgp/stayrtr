@@ -377,12 +377,19 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	log.Debugf("Starting refresh routine (file: %v, interval: %vs, slurm: %v)", file, interval, slurmFile)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
+	lastUpdateFail := false
 	for {
-		delay := time.NewTimer(time.Duration(interval) * time.Second)
+		var delay *time.Timer
 		if (s.lastchange.IsZero()) {
 			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
 			delay = time.NewTimer(time.Duration(30) * time.Second)
+		} else if (lastUpdateFail) {
+			log.Warn("Update failure causing 30 second refresh")
+			delay = time.NewTimer(time.Duration(30) * time.Second)
+		} else {
+			delay = time.NewTimer(time.Duration(interval) * time.Second)
 		}
+		lastUpdateFail = false
 		select {
 		case <-delay.C:
 		case <-signals:
@@ -424,6 +431,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 			err := s.updateFromNewState()
 			if err != nil {
 				log.Errorf("Error updating from new state: %v", err)
+				lastUpdateFail = true
 			}
 		}
 	}
