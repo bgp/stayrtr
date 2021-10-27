@@ -378,10 +378,12 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
 	for {
-		delay := time.NewTimer(time.Duration(interval) * time.Second)
+		var delay *time.Timer
 		if (s.lastchange.IsZero()) {
 			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
 			delay = time.NewTimer(time.Duration(30) * time.Second)
+		} else {
+			delay = time.NewTimer(time.Duration(interval) * time.Second)
 		}
 		select {
 		case <-delay.C:
@@ -597,7 +599,10 @@ func run() error {
 	}
 
 	// Initial calculation of state (after fetching cache + slurm)
-	s.updateFromNewState()
+	err = s.updateFromNewState()
+	if err != nil {
+		log.Warnf("Error setting up intial state: %s", err)
+	}
 
 	if *Bind != "" {
 		go func() {
