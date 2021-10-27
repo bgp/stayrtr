@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"os"
 	"testing"
 
 	rtr "github.com/bgp/stayrtr/lib"
@@ -88,17 +89,17 @@ func TestProcessData(t *testing.T) {
 	got, count, v4count, v6count := processData(stuff)
 	want := []rtr.VRP{
 		{
-			Prefix: MustParseIPNet("192.168.0.0/24"),
+			Prefix: mustParseIPNet("192.168.0.0/24"),
 			MaxLen: 24,
 			ASN:    123,
 		},
 		{
-			Prefix: MustParseIPNet("2001:db8::/32"),
+			Prefix: mustParseIPNet("2001:db8::/32"),
 			MaxLen: 33,
 			ASN:    123,
 		},
 		{
-			Prefix: MustParseIPNet("192.168.1.0/24"),
+			Prefix: mustParseIPNet("192.168.1.0/24"),
 			MaxLen: 25,
 			ASN:    123,
 		},
@@ -112,13 +113,23 @@ func TestProcessData(t *testing.T) {
 	}
 }
 
-// MustParseIPNet is a test helper function to return a net.IPNet
+// mustParseIPNet is a test helper function to return a net.IPNet
 // This should only be called in test code, and it'll panic on test set up
 // if unable to parse.
-func MustParseIPNet(prefix string) net.IPNet {
+func mustParseIPNet(prefix string) net.IPNet {
 	_, ipnet, err := net.ParseCIDR(prefix)
 	if err != nil {
 		panic(err)
 	}
 	return *ipnet
+}
+
+func BenchmarkDecodeJSON(b *testing.B) {
+	json, err := os.ReadFile("test.rpki.json")
+	if err != nil {
+		panic(err)
+	}
+	for n := 0; n < b.N; n++ {
+		decodeJSON(json)
+	}
 }
