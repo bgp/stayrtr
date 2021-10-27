@@ -24,6 +24,9 @@ OUTPUT_STAYRTR := $(DIST_DIR)stayrtr$(SUFFIX)
 OUTPUT_RTRDUMP := $(DIST_DIR)rtrdump$(SUFFIX)
 OUTPUT_RTRMON := $(DIST_DIR)rtrmon$(SUFFIX)
 
+export CGO_ENABLED ?= 0
+
+
 .PHONY: vet
 vet:
 	go vet cmd/stayrtr/stayrtr.go
