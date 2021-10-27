@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -379,7 +378,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	signal.Notify(signals, syscall.SIGHUP)
 	for {
 		var delay *time.Timer
-		if (s.lastchange.IsZero()) {
+		if s.lastchange.IsZero() {
 			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
 			delay = time.NewTimer(time.Duration(30) * time.Second)
 		} else {
@@ -498,8 +497,6 @@ func main() {
 }
 
 func run() error {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	flag.Parse()
 	if flag.NArg() > 0 {
 		fmt.Printf("%s: illegal positional argument(s) provided (\"%s\") - did you mean to provide a flag?\n", os.Args[0], strings.Join(flag.Args(), " "))
@@ -542,7 +539,7 @@ func run() error {
 
 	s := state{
 		server:       server,
-		lastdata:    &prefixfile.VRPList{},
+		lastdata:     &prefixfile.VRPList{},
 		metricsEvent: me,
 		sendNotifs:   *SendNotifs,
 		checktime:    *TimeCheck,
