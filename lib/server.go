@@ -33,7 +33,7 @@ type RTREventHandler interface {
 
 type VRPManager interface {
 	GetCurrentSerial(uint16) (uint32, bool)
-	GetSessionId(*Client) (uint16, error)
+	GetSessionId() uint16
 	GetCurrentVRPs() ([]VRP, bool)
 	GetVRPsSerialDiff(uint32) ([]VRP, bool)
 }
@@ -51,7 +51,7 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request Cache", c)
 	}
-	sessionId, _ := e.vrpManager.GetSessionId(c)
+	sessionId := e.vrpManager.GetSessionId()
 	serial, valid := e.vrpManager.GetCurrentSerial(sessionId)
 	if !valid {
 		c.SendNoDataError()
@@ -274,8 +274,8 @@ func (s *Server) SetManualSerial(v bool) {
 	s.manualserial = v
 }
 
-func (s *Server) GetSessionId(c *Client) (uint16, error) {
-	return s.sessId, nil
+func (s *Server) GetSessionId() uint16 {
+	return s.sessId
 }
 
 func (s *Server) GetCurrentVRPs() ([]VRP, bool) {

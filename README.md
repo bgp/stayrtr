@@ -46,7 +46,7 @@ People probably use this!
 
 ## To start developing
 
-You need a working [Go environment](https://golang.org/doc/install) (1.10 or newer).
+You need a working [Go environment](https://golang.org/doc/install) (1.16 or newer).
 This project also uses [Go Modules](https://github.com/golang/go/wiki/Modules).
 
 ```bash
