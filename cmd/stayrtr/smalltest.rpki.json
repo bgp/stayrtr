@@ -1,0 +1,23 @@
+{
+  "metadata": {
+    "buildtime": "2021-07-27T18:56:02Z",
+    "vrps": 2
+  },
+
+  "roas": [
+    {
+      "asn": 13335,
+      "prefix": "1.0.0.0/24",
+      "maxLength": 24,
+      "ta": "apnic",
+      "expires": 1627568318
+    },
+    {
+      "asn": "AS9367",
+      "prefix": "2001:200:136::/48",
+      "maxLength": 48,
+      "ta": "apnic",
+      "expires": 1627575699
+    }
+  ]
+}

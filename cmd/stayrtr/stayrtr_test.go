@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"testing"
@@ -131,5 +132,51 @@ func BenchmarkDecodeJSON(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		decodeJSON(json)
+	}
+}
+
+func TestJson(t *testing.T) {
+	json, err := os.ReadFile("smalltest.rpki.json")
+	if err != nil {
+		panic(err)
+	}
+	got, err := decodeJSON(json)
+	if err != nil {
+		t.Errorf("Unable to decode json: %v", err)
+	}
+
+	want := (&prefixfile.VRPList{
+		Metadata: prefixfile.MetaData{
+			Counts:    2,
+			Buildtime: "2021-07-27T18:56:02Z",
+		},
+		Data: []prefixfile.VRPJson{
+			{Prefix: "1.0.0.0/24",
+				Length:  24,
+				ASN:     float64(13335),
+				TA:      "apnic",
+				Expires: 1627568318,
+			},
+			{
+				Prefix:  "2001:200:136::/48",
+				Length:  48,
+				ASN:     "AS9367",
+				TA:      "apnic",
+				Expires: 1627575699,
+			},
+		},
+	})
+
+	if !cmp.Equal(got, want) {
+		t.Errorf("Got (%v), Wanted (%v)", got, want)
+	}
+
+}
+
+func TestNewSHA256(t *testing.T) {
+	want := "8eddd6897b244bb4d045ff811128b50b53ed85d19a9d1b756a0a400e82b23c2f"
+	got := fmt.Sprintf("%x", newSHA256([]byte("☘️")))
+	if got != want {
+		t.Errorf("Got (%s), Wanted (%s)", got, want)
 	}
 }

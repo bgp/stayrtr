@@ -165,9 +165,11 @@ func metricHTTP() {
 	log.Fatal(http.ListenAndServe(*MetricsAddr, nil))
 }
 
-func checkFile(data []byte) ([]byte, error) {
-	hsum := sha256.Sum256(data)
-	return hsum[:], nil
+// newSHA256 will return the sha256 sum of the byte slice
+// The return will be converted form a [32]byte to []byte
+func newSHA256(data []byte) []byte {
+	hash := sha256.Sum256(data)
+	return hash[:]
 }
 
 func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
@@ -251,7 +253,7 @@ func (e IdenticalFile) Error() string {
 
 // Update the state based on the current slurm file and data.
 func (s *state) updateFromNewState() error {
-	sessid, _ := s.server.GetSessionId(nil)
+	sessid := s.server.GetSessionId()
 
 	if s.checktime {
 		buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
@@ -327,7 +329,7 @@ func (s *state) updateFile(file string) (bool, error) {
 		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
-	hsum, _ := checkFile(data)
+	hsum := newSHA256(data)
 	if s.lasthash != nil {
 		cres := bytes.Compare(s.lasthash, hsum)
 		if cres == 0 {
@@ -603,7 +605,7 @@ func run() error {
 
 	if *Bind != "" {
 		go func() {
-			sessid, _ := server.GetSessionId(nil)
+			sessid := server.GetSessionId()
 			log.Infof("StayRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
 			err := server.Start(*Bind)
 			if err != nil {
