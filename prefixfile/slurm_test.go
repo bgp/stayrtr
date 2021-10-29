@@ -1,73 +1,21 @@
 package prefixfile
 
 import (
-	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDecodeJSON(t *testing.T) {
-	data := `{
-		  "slurmVersion": 1,
-		  "validationOutputFilters": {
-		   "prefixFilters": [
-		     {
-		      "prefix": "192.0.2.0/24",
-		      "comment": "All VRPs encompassed by prefix"
-		     },
-		     {
-		      "asn": 64496,
-		      "comment": "All VRPs matching ASN"
-		     },
-		     {
-		      "prefix": "198.51.100.0/24",
-		      "asn": 64497,
-		      "comment": "All VRPs encompassed by prefix, matching ASN"
-		     }
-		   ],
-		   "bgpsecFilters": [
-		     {
-		      "asn": 64496,
-		      "comment": "All keys for ASN"
-		     },
-		     {
-		      "SKI": "Zm9v",
-		      "comment": "Key matching Router SKI"
-		     },
-		     {
-		      "asn": 64497,
-		      "SKI": "YmFy",
-		      "comment": "Key for ASN 64497 matching Router SKI"
-		     }
-		   ]
-		  },
-		  "locallyAddedAssertions": {
-		   "prefixAssertions": [
-		     {
-		      "asn": 64496,
-		      "prefix": "198.51.100.0/24",
-		      "comment": "My other important route"
-		     },
-		     {
-		      "asn": 64496,
-		      "prefix": "2001:DB8::/32",
-		      "maxPrefixLength": 48,
-		      "comment": "My other important de-aggregated routes"
-		     }
-		   ],
-		   "bgpsecAssertions": [
-		     {
-		      "asn": 64496,
-		      "comment" : "My known key for my important ASN",
-		      "SKI": "<some base64 SKI>",
-		      "routerPublicKey": "<some base64 public key>"
-		     }
-		   ]
-		  }
-		}`
-	buf := bytes.NewBufferString(data)
-	decoded, err := DecodeJSONSlurm(buf)
+func TestDecodeJSONSlurm(t *testing.T) {
+	json, err := os.Open("slurm.json")
+	if err != nil {
+		panic(err)
+	}
+	decoded, err := DecodeJSONSlurm(json)
+	if err != nil {
+		t.Errorf("Unable to decode json: %v", err)
+	}
 	assert.Nil(t, err)
 	asn, _ := decoded.ValidationOutputFilters.PrefixFilters[1].GetASN()
 	_, asnEmpty := decoded.ValidationOutputFilters.PrefixFilters[0].GetASN()
