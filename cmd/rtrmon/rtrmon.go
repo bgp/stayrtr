@@ -358,9 +358,9 @@ func (c *Client) Start(id int, ch chan int) {
 				tmpVrpMap[key] = &vrpSimple
 			}
 			c.compLock.Lock()
+			defer c.compLock.Unlock()
 			c.vrps = tmpVrpMap
 			c.lastUpdate = time.Now().UTC()
-			c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
 			}
@@ -382,14 +382,13 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
 		c.compRtrLock.Lock()
+		defer c.compRtrLock.Unlock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
 			c.vrpsRtr[key] = &vrp
 		} else {
 			delete(c.vrpsRtr, key)
 		}
-
-		c.compRtrLock.Unlock()
 	case *rtr.PDUIPv6Prefix:
 		vrp := VRPJsonSimple{
 			Prefix:    pdu.Prefix.String(),
@@ -400,14 +399,13 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
 		c.compRtrLock.Lock()
+		defer c.compRtrLock.Unlock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
 			c.vrpsRtr[key] = &vrp
 		} else {
 			delete(c.vrpsRtr, key)
 		}
-
-		c.compRtrLock.Unlock()
 	case *rtr.PDUEndOfData:
 		log.Infof("%d: Received: %v", c.id, pdu)
 
@@ -496,6 +494,7 @@ func (c *Client) continuousRTR(cs *rtr.ClientSession) {
 
 func (c *Client) GetData() (map[string]*VRPJsonSimple, *diffMetadata) {
 	c.compLock.RLock()
+	defer c.compLock.RUnlock()
 	vrps := c.vrps
 
 	md := &diffMetadata{
@@ -510,8 +509,6 @@ func (c *Client) GetData() (map[string]*VRPJsonSimple, *diffMetadata) {
 
 		LastFetch: c.lastUpdate.UnixNano() / 1e9,
 	}
-
-	c.compLock.RUnlock()
 
 	return vrps, md
 }
