@@ -339,13 +339,14 @@ func (s *Server) setSerial(serial uint32) {
 // be called before the VRPs data is added.
 func (s *Server) SetSerial(serial uint32) {
 	s.vrplock.RLock()
+	defer s.vrplock.RUnlock()
 	//s.vrpListSerial = make([]uint32, 0)
 	s.setSerial(serial)
-	s.vrplock.RUnlock()
 }
 
 func (s *Server) AddVRPs(vrps []VRP) {
 	s.vrplock.RLock()
+	defer s.vrplock.RUnlock()
 
 	vrpCurrent := s.vrpCurrent
 
@@ -356,7 +357,6 @@ func (s *Server) AddVRPs(vrps []VRP) {
 		s.log.Debugf("Computed diff: added (%d), removed (%d), unchanged (%d)", len(added), len(removed), len(unchanged))
 	}
 	curDiff := append(added, removed...)
-	s.vrplock.RUnlock()
 
 	s.AddVRPsDiff(curDiff)
 }
@@ -383,6 +383,7 @@ func (s *Server) AddVRPsDiff(diff []VRP) {
 	s.vrplock.RUnlock()
 
 	s.vrplock.Lock()
+	defer s.vrplock.Unlock()
 	newserial := s.generateSerial()
 	removed := s.addSerial(newserial)
 
@@ -407,7 +408,6 @@ func (s *Server) AddVRPsDiff(diff []VRP) {
 	s.vrpListDiff = nextDiff
 	s.vrpCurrent = newVrpCurrent
 	s.setSerial(newserial)
-	s.vrplock.Unlock()
 }
 
 func (s *Server) SetBaseVersion(version uint8) {
@@ -956,7 +956,6 @@ func (c *Client) Disconnect() {
 	select {
 	case c.quit <- true:
 	default:
-
 	}
 
 	c.tcpconn.Close()
