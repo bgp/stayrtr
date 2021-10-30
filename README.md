@@ -278,7 +278,7 @@ $ ./rtrmon \
   -primary.host tcp://rtr.rpki.cloudflare.com:8282 \
   -secondary.host https://console.rpki-client.org/vrps.json \
   -secondary.refresh 30s \
-  -primary.refresh 30s \
+  -primary.refresh 30s
 ```
 
 By default the Prometheus endpoint is on `http://[host]:9866/metrics`.
@@ -286,7 +286,7 @@ Among others, this endpoint contains the following metrics:
 
   * `rpki_vrps`: Current number of VRPS and current difference between the primary and secondary.
   * `rtr_serial`: Serial of the rtr session (when applicable).
-  * `rtr_ression`: Session ID of the RTR session.
+  * `rtr_session`: Session ID of the RTR session.
   * `rtr_state`: State of the rtr session (up/down).
   * `update`: Timestamp of the last update.
   * `vrp_diff`: The number of VRPs which were seen in `lhs` at least `visibility_seconds` ago not in `rhs`.
