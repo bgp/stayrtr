@@ -358,9 +358,9 @@ func (c *Client) Start(id int, ch chan int) {
 				tmpVrpMap[key] = &vrpSimple
 			}
 			c.compLock.Lock()
-			defer c.compLock.Unlock()
 			c.vrps = tmpVrpMap
 			c.lastUpdate = time.Now().UTC()
+			c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
 			}
