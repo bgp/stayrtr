@@ -382,13 +382,14 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
 		c.compRtrLock.Lock()
-		defer c.compRtrLock.Unlock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
 			c.vrpsRtr[key] = &vrp
 		} else {
 			delete(c.vrpsRtr, key)
 		}
+
+		c.compRtrLock.Unlock()
 	case *rtr.PDUIPv6Prefix:
 		vrp := VRPJsonSimple{
 			Prefix:    pdu.Prefix.String(),
@@ -399,13 +400,14 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
 		c.compRtrLock.Lock()
-		defer c.compRtrLock.Unlock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
 			c.vrpsRtr[key] = &vrp
 		} else {
 			delete(c.vrpsRtr, key)
 		}
+
+		c.compRtrLock.Unlock()
 	case *rtr.PDUEndOfData:
 		log.Infof("%d: Received: %v", c.id, pdu)
 
