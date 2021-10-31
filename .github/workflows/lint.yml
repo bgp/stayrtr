@@ -18,3 +18,5 @@ jobs:
       # below, but it's still much faster in the end than installing
       # golangci-lint manually in the `Run lint` step.
       - uses: golangci/golangci-lint-action@v2
+        with:
+          only-new-issues: true
