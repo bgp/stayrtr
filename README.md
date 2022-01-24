@@ -101,22 +101,7 @@ $ make build-stayrtr
 
 The compiled file will be in `/dist`.
 
-Or you can use a package (or binary) file from the [Releases page](https://github.com/bgp/stayrtr/releases):
-
-```bash
-$ sudo dpkg -i stayrtr[...].deb
-$ sudo systemctl start stayrtr
-```
-
-If you want to sign your list of prefixes, generate an ECDSA key.
-Then generate the public key to be used in StayRTR.
-You will have to setup your validator to use this key or have another
-tool to sign the JSON file before passing it to StayRTR.
-
-```bash
-$ openssl ecparam -genkey -name prime256v1 -noout -outform pem > private.pem
-$ openssl ec -in private.pem -pubout -outform pem > public.pem
-```
+Or you can use a tarball file from the [Releases page](https://github.com/bgp/stayrtr/releases):
 
 ## Run it
 
