@@ -394,7 +394,7 @@ type state struct {
 
 	server *rtr.Server
 
-	metricsEvent *metricsEvent
+	metricsEvent *metrics.MetricsEvent
 
 	exported prefixfile.VRPList
 	lockJson *sync.RWMutex
@@ -402,35 +402,6 @@ type state struct {
 	slurm *prefixfile.SlurmConfig
 
 	checktime bool
-}
-
-type metricsEvent struct {
-}
-
-func (m *metricsEvent) ClientConnected(c *rtr.Client) {
-	metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
-}
-
-func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
-	metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
-}
-
-func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
-	metrics.PDUsRecv.WithLabelValues(
-		strings.ToLower(
-			strings.Replace(
-				rtr.TypeToString(
-					pdu.GetType()),
-				" ",
-				"_", -1))).Inc()
-}
-
-func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
-	metrics.NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
-	metrics.NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
-	metrics.NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
-	metrics.NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
-	metrics.LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
 func main() {
@@ -470,11 +441,11 @@ func run() error {
 		ExpireInterval:  uint32(*ExpireRTR),
 	}
 
-	var me *metricsEvent
+	var me *metrics.MetricsEvent
 	var enableHTTP bool
 	if *MetricsAddr != "" {
 		//initMetrics()
-		me = &metricsEvent{}
+		me = &metrics.MetricsEvent{}
 		enableHTTP = true
 	}
 

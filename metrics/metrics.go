@@ -3,7 +3,10 @@ package metrics
 import (
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
+	rtr "github.com/bgp/stayrtr/lib"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -65,6 +68,34 @@ func initMetrics() {
 func MetricHTTP(metricsPath string, metricsAddr string) {
 	http.Handle(metricsPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(metricsAddr, nil))
+}
+
+type MetricsEvent struct{}
+
+func (m *MetricsEvent) ClientConnected(c *rtr.Client) {
+	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
+}
+
+func (m *MetricsEvent) ClientDisconnected(c *rtr.Client) {
+	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
+}
+
+func (m *MetricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
+	PDUsRecv.WithLabelValues(
+		strings.ToLower(
+			strings.Replace(
+				rtr.TypeToString(
+					pdu.GetType()),
+				" ",
+				"_", -1))).Inc()
+}
+
+func (m *MetricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
+	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
+	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
+	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
+	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
+	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
 func init() {
