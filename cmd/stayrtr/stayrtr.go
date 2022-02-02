@@ -19,10 +19,9 @@ import (
 	"time"
 
 	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/metrics"
 	"github.com/bgp/stayrtr/prefixfile"
 	"github.com/bgp/stayrtr/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -92,49 +91,6 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
-	NumberOfVRPs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_vrps",
-			Help: "Number of VRPs.",
-		},
-		[]string{"ip_version", "filtered", "path"},
-	)
-	LastRefresh = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_refresh",
-			Help: "Last successful request for the given URL.",
-		},
-		[]string{"path"},
-	)
-	LastChange = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_change",
-			Help: "Last change.",
-		},
-		[]string{"path"},
-	)
-	RefreshStatusCode = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "refresh_requests_total",
-			Help: "Total number of HTTP requests by status code",
-		},
-		[]string{"path", "code"},
-	)
-	ClientsMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rtr_clients",
-			Help: "Number of clients connected.",
-		},
-		[]string{"bind"},
-	)
-	PDUsRecv = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rtr_pdus",
-			Help: "PDU received.",
-		},
-		[]string{"type"},
-	)
-
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
@@ -150,20 +106,6 @@ var (
 		"full":    USE_SERIAL_FULL,
 	}
 )
-
-func initMetrics() {
-	prometheus.MustRegister(NumberOfVRPs)
-	prometheus.MustRegister(LastChange)
-	prometheus.MustRegister(LastRefresh)
-	prometheus.MustRegister(RefreshStatusCode)
-	prometheus.MustRegister(ClientsMetric)
-	prometheus.MustRegister(PDUsRecv)
-}
-
-func metricHTTP() {
-	http.Handle(*MetricsPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(*MetricsAddr, nil))
-}
 
 // newSHA256 will return the sha256 sum of the byte slice
 // The return will be converted form a [32]byte to []byte
@@ -323,10 +265,10 @@ func (s *state) updateFile(file string) (bool, error) {
 		return false, err
 	}
 	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
+		metrics.LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
 	}
 	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
+		metrics.RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
 	hsum := newSHA256(data)
@@ -358,10 +300,10 @@ func (s *state) updateSlurm(file string) (bool, error) {
 		return false, err
 	}
 	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
+		metrics.LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
 	}
 	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
+		metrics.RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
 	buf := bytes.NewBuffer(data)
@@ -466,15 +408,15 @@ type metricsEvent struct {
 }
 
 func (m *metricsEvent) ClientConnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
+	metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
 }
 
 func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
+	metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
 }
 
 func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
-	PDUsRecv.WithLabelValues(
+	metrics.PDUsRecv.WithLabelValues(
 		strings.ToLower(
 			strings.Replace(
 				rtr.TypeToString(
@@ -484,11 +426,11 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 }
 
 func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
-	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
-	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
-	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
-	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
-	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
+	metrics.NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
+	metrics.NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
+	metrics.NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
+	metrics.NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
+	metrics.LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
 func main() {
@@ -531,7 +473,7 @@ func run() error {
 	var me *metricsEvent
 	var enableHTTP bool
 	if *MetricsAddr != "" {
-		initMetrics()
+		//initMetrics()
 		me = &metricsEvent{}
 		enableHTTP = true
 	}
@@ -558,7 +500,7 @@ func run() error {
 		if *ExportPath != "" {
 			http.HandleFunc(*ExportPath, s.exporter)
 		}
-		go metricHTTP()
+		go metrics.MetricHTTP(*MetricsPath, *MetricsAddr)
 	}
 
 	if *Bind == "" && *BindTLS == "" && *BindSSH == "" {
