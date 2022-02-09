@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"fmt"
@@ -7,80 +7,127 @@ import (
 	"testing"
 
 	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
 	"github.com/google/go-cmp/cmp"
 )
 
+func BenchmarkDecodeJSON(b *testing.B) {
+	json, err := os.ReadFile("test.rpki.json")
+	if err != nil {
+		panic(err)
+	}
+	for n := 0; n < b.N; n++ {
+		decodeJSON(json)
+	}
+}
+
+func TestJson(t *testing.T) {
+	json, err := os.ReadFile("smalltest.rpki.json")
+	if err != nil {
+		panic(err)
+	}
+	got, err := decodeJSON(json)
+	if err != nil {
+		t.Errorf("Unable to decode json: %v", err)
+	}
+
+	want := (&VRPList{
+		Metadata: MetaData{
+			Counts:    2,
+			Buildtime: "2021-07-27T18:56:02Z",
+		},
+		Data: []VRPJson{
+			{Prefix: "1.0.0.0/24",
+				Length:  24,
+				ASN:     float64(13335),
+				TA:      "apnic",
+				Expires: 1627568318,
+			},
+			{
+				Prefix:  "2001:200:136::/48",
+				Length:  48,
+				ASN:     "AS9367",
+				TA:      "apnic",
+				Expires: 1627575699,
+			},
+		},
+	})
+
+	if !cmp.Equal(got, want) {
+		t.Errorf("Got (%v), Wanted (%v)", got, want)
+	}
+
+}
+
 func TestProcessData(t *testing.T) {
-	var stuff []prefixfile.VRPJson
+	var stuff []VRPJson
 	stuff = append(stuff,
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.0.0/24",
 			Length: 24,
 			ASN:    123,
 			TA:     "testrir",
 		},
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.0.0/24",
 			Length: 24,
 			TA:     "testrir",
 		},
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "2001:db8::/32",
 			Length: 33,
 			ASN:    "AS123",
 			TA:     "testrir",
 		},
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0/24",
 			Length: 25,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. Length is 0
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0/24",
 			Length: 0,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. Length less than prefix length
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0/24",
 			Length: 16,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. 129 is invalid for IPv6
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "2001:db8::/32",
 			Length: 129,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. 33 is invalid for IPv4
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0/24",
 			Length: 33,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. Not a prefix
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0",
 			Length: 24,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. Not a prefix
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "👻",
 			Length: 24,
 			ASN:    123,
 			TA:     "testrir",
 		},
 		// Invalid. Invalid ASN string
-		prefixfile.VRPJson{
+		VRPJson{
 			Prefix: "192.168.1.0/22",
 			Length: 22,
 			ASN:    "ASN123",
@@ -123,54 +170,6 @@ func mustParseIPNet(prefix string) net.IPNet {
 		panic(err)
 	}
 	return *ipnet
-}
-
-func BenchmarkDecodeJSON(b *testing.B) {
-	json, err := os.ReadFile("test.rpki.json")
-	if err != nil {
-		panic(err)
-	}
-	for n := 0; n < b.N; n++ {
-		decodeJSON(json)
-	}
-}
-
-func TestJson(t *testing.T) {
-	json, err := os.ReadFile("smalltest.rpki.json")
-	if err != nil {
-		panic(err)
-	}
-	got, err := decodeJSON(json)
-	if err != nil {
-		t.Errorf("Unable to decode json: %v", err)
-	}
-
-	want := (&prefixfile.VRPList{
-		Metadata: prefixfile.MetaData{
-			Counts:    2,
-			Buildtime: "2021-07-27T18:56:02Z",
-		},
-		Data: []prefixfile.VRPJson{
-			{Prefix: "1.0.0.0/24",
-				Length:  24,
-				ASN:     float64(13335),
-				TA:      "apnic",
-				Expires: 1627568318,
-			},
-			{
-				Prefix:  "2001:200:136::/48",
-				Length:  48,
-				ASN:     "AS9367",
-				TA:      "apnic",
-				Expires: 1627575699,
-			},
-		},
-	})
-
-	if !cmp.Equal(got, want) {
-		t.Errorf("Got (%v), Wanted (%v)", got, want)
-	}
-
 }
 
 func TestNewSHA256(t *testing.T) {
