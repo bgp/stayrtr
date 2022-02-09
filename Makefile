@@ -34,7 +34,7 @@ vet:
 .PHONY: test
 test:
 	go test -v github.com/bgp/stayrtr/lib
-	go test -v github.com/bgp/stayrtr/prefixfile
+	go test -v github.com/bgp/stayrtr/cache
 
 .PHONY: prepare
 prepare:
