@@ -3,7 +3,6 @@ package rtrlib
 import (
 	"testing"
 
-	"github.com/bgp/stayrtr/prefixfile"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -14,8 +13,6 @@ var (
 )
 
 type TestClient struct {
-	Data prefixfile.VRPList
-
 	InitSerial bool
 	Serial     uint32
 	SessionID  uint16
@@ -32,10 +29,6 @@ func getBasicClientConguration(version int) ClientConfiguration {
 
 func getClient() *TestClient {
 	return &TestClient{
-		Data: prefixfile.VRPList{
-			Metadata: prefixfile.MetaData{},
-			Data:     make([]prefixfile.VRPJson, 0),
-		},
 		InitSerial: InitSerial,
 		Serial:     Serial,
 		SessionID:  Session,
