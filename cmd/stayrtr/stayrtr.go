@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bgp/stayrtr/cache"
 	rtr "github.com/bgp/stayrtr/lib"
 	"github.com/bgp/stayrtr/metrics"
 	"github.com/bgp/stayrtr/prefixfile"
@@ -452,24 +453,28 @@ func run() error {
 	server := rtr.NewServer(sc, me, deh)
 	deh.SetVRPManager(server)
 
-	s := state{
-		server:       server,
-		lastdata:     &prefixfile.VRPList{},
-		metricsEvent: me,
-		sendNotifs:   *SendNotifs,
-		checktime:    *TimeCheck,
-		lockJson:     &sync.RWMutex{},
+	/*
+		s := cache.VRPCache{
+			server:       server,
+			lastdata:     &prefixfile.VRPList{},
+			metricsEvent: me,
+			sendNotifs:   *SendNotifs,
+			checktime:    *TimeCheck,
+			lockJson:     &sync.RWMutex{},
 
-		fetchConfig: utils.NewFetchConfig(),
-	}
-	s.fetchConfig.UserAgent = *UserAgent
-	s.fetchConfig.Mime = *Mime
-	s.fetchConfig.EnableEtags = *Etag
-	s.fetchConfig.EnableLastModified = *LastModified
+			fetchConfig: utils.NewFetchConfig(),
+		}
+	*/
+
+	s := cache.NewVRPCache(server, *TimeCheck, *SendNotifs)
+	s.FetchConfig.UserAgent = *UserAgent
+	s.FetchConfig.Mime = *Mime
+	s.FetchConfig.EnableEtags = *Etag
+	s.FetchConfig.EnableLastModified = *LastModified
 
 	if enableHTTP {
 		if *ExportPath != "" {
-			http.HandleFunc(*ExportPath, s.exporter)
+			http.HandleFunc(*ExportPath, s.Exporter)
 		}
 		go metrics.MetricHTTP(*MetricsPath, *MetricsAddr)
 	}
@@ -478,7 +483,7 @@ func run() error {
 		log.Fatalf("Specify at least a bind address")
 	}
 
-	_, err := s.updateFile(*CacheBin)
+	_, err := s.UpdateFile(*CacheBin)
 	if err != nil {
 		switch err.(type) {
 		case utils.HttpNotModified:
@@ -494,7 +499,7 @@ func run() error {
 
 	slurmFile := *Slurm
 	if slurmFile != "" {
-		_, err := s.updateSlurm(slurmFile)
+		_, err := s.UpdateSlurm(slurmFile)
 		if err != nil {
 			switch err.(type) {
 			case utils.HttpNotModified:
@@ -511,7 +516,7 @@ func run() error {
 	}
 
 	// Initial calculation of state (after fetching cache + slurm)
-	err = s.updateFromNewState()
+	err = s.UpdateFromNewState()
 	if err != nil {
 		log.Warnf("Error setting up intial state: %s", err)
 	}
@@ -628,7 +633,7 @@ func run() error {
 		}()
 	}
 
-	s.routineUpdate(*CacheBin, *RefreshInterval, slurmFile)
+	s.RoutineUpdate(*CacheBin, *RefreshInterval, slurmFile)
 
 	return nil
 }

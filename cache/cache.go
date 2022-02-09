@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -15,7 +16,6 @@ import (
 
 	rtr "github.com/bgp/stayrtr/lib"
 	"github.com/bgp/stayrtr/metrics"
-	"github.com/bgp/stayrtr/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,11 +28,11 @@ type VRPCache struct {
 	useSerial  int
 	cacheBin   string
 
-	fetchConfig *FetchConfig
+	FetchConfig *FetchConfig
 
-	server *rtr.Server
+	Server *rtr.Server
 
-	metricsEvent *metrics.MetricsEvent
+	metricsEvent *metrics.MetricsEvent // this is busted. Fix me.
 
 	exported VRPList
 	mu       *sync.RWMutex
@@ -40,6 +40,17 @@ type VRPCache struct {
 	slurm *SlurmConfig
 
 	checktime bool
+}
+
+func NewVRPCache(server *rtr.Server, checktime bool, sendNotifs bool) *VRPCache {
+	c := &VRPCache{
+		Server:      server,
+		FetchConfig: NewFetchConfig(),
+		lastdata:    &VRPList{},
+		sendNotifs:  sendNotifs,
+		checktime:   checktime,
+	}
+	return c
 }
 
 // newSHA256 will return the sha256 sum of the byte slice
@@ -128,9 +139,17 @@ func (e IdenticalFile) Error() string {
 	return fmt.Sprintf("File %s is identical to the previous version", e.File)
 }
 
+func (c *VRPCache) Exporter(wr http.ResponseWriter, r *http.Request) {
+	c.mu.RLock()
+	toExport := c.exported
+	c.mu.RUnlock()
+	enc := json.NewEncoder(wr)
+	enc.Encode(toExport)
+}
+
 // Update the state based on the current slurm file and data.
-func (c *VRPCache) updateFromNewState() error {
-	sessid := c.server.GetSessionId()
+func (c *VRPCache) UpdateFromNewState() error {
+	sessid := c.Server.GetSessionId()
 
 	if c.checktime {
 		buildtime, err := time.Parse(time.RFC3339, c.lastdata.Metadata.Buildtime)
@@ -155,13 +174,13 @@ func (c *VRPCache) updateFromNewState() error {
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
 
-	c.server.AddVRPs(vrps)
+	c.Server.AddVRPs(vrps)
 
-	serial, _ := c.server.GetCurrentSerial(sessid)
+	serial, _ := c.Server.GetCurrentSerial(sessid)
 	log.Infof("Updated added, new serial %v", serial)
 	if c.sendNotifs {
 		log.Debugf("Sending notifications to clients")
-		c.server.NotifyClientsLatest()
+		c.Server.NotifyClientsLatest()
 	}
 
 	c.mu.Lock()
@@ -191,11 +210,11 @@ func (c *VRPCache) updateFromNewState() error {
 	return nil
 }
 
-func (c *VRPCache) updateFile(file string) (bool, error) {
+func (c *VRPCache) UpdateFile(file string) (bool, error) {
 	log.Debugf("Refreshing cache from %s", file)
 
 	c.lastts = time.Now().UTC()
-	data, code, lastrefresh, err := c.fetchConfig.FetchFile(file)
+	data, code, lastrefresh, err := c.FetchConfig.FetchFile(file)
 	if err != nil {
 		return false, err
 	}
@@ -228,9 +247,9 @@ func (c *VRPCache) updateFile(file string) (bool, error) {
 	return true, nil
 }
 
-func (c *VRPCache) updateSlurm(file string) (bool, error) {
+func (c *VRPCache) UpdateSlurm(file string) (bool, error) {
 	log.Debugf("Refreshing slurm from %v", file)
-	data, code, lastrefresh, err := c.fetchConfig.FetchFile(file)
+	data, code, lastrefresh, err := c.FetchConfig.FetchFile(file)
 	if err != nil {
 		return false, err
 	}
@@ -251,7 +270,7 @@ func (c *VRPCache) updateSlurm(file string) (bool, error) {
 	return true, nil
 }
 
-func (c *VRPCache) routineUpdate(file string, interval int, slurmFile string) {
+func (c *VRPCache) RoutineUpdate(file string, interval int, slurmFile string) {
 	log.Debugf("Starting refresh routine (file: %v, interval: %vs, slurm: %v)", file, interval, slurmFile)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
@@ -272,24 +291,24 @@ func (c *VRPCache) routineUpdate(file string, interval int, slurmFile string) {
 		slurmNotPresentOrUpdated := false
 		if slurmFile != "" {
 			var err error
-			slurmNotPresentOrUpdated, err = c.updateSlurm(slurmFile)
+			slurmNotPresentOrUpdated, err = c.UpdateSlurm(slurmFile)
 			if err != nil {
 				switch err.(type) {
-				case utils.HttpNotModified:
+				case HttpNotModified:
 					log.Info(err)
-				case utils.IdenticalEtag:
+				case IdenticalEtag:
 					log.Info(err)
 				default:
 					log.Errorf("Slurm: %v", err)
 				}
 			}
 		}
-		cacheUpdated, err := c.updateFile(file)
+		cacheUpdated, err := c.UpdateFile(file)
 		if err != nil {
 			switch err.(type) {
-			case utils.HttpNotModified:
+			case HttpNotModified:
 				log.Info(err)
-			case utils.IdenticalEtag:
+			case IdenticalEtag:
 				log.Info(err)
 			case IdenticalFile:
 				log.Info(err)
@@ -301,7 +320,7 @@ func (c *VRPCache) routineUpdate(file string, interval int, slurmFile string) {
 		// Only process the first time after there is either a cache or SLURM
 		// update.
 		if cacheUpdated || slurmNotPresentOrUpdated {
-			err := c.updateFromNewState()
+			err := c.UpdateFromNewState()
 			if err != nil {
 				log.Errorf("Error updating from new state: %v", err)
 			}
