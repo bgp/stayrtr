@@ -1,0 +1,83 @@
+before:
+  hooks:
+    - go mod download
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+builds:
+  - id: stayrtr
+    main: cmd/stayrtr/stayrtr.go
+    binary: stayrtr
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+  - id: rtrdump
+    main: cmd/rtrdump/rtrdump.go
+    binary: rtrdump
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+  - id: rtrmon
+    main: cmd/rtrmon/rtrmon.go
+    binary: rtrmon
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+nfpms:
+  - package_name: stayrtr
+    file_name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    vendor: stayrtr
+    homepage: https://github.com/bgp/stayrtr
+    maintainer: Example <example@example.com>
+    description: Simple RPKI-To-Router server. (Hard fork of GoRTR)
+    license: BSD-3-Clause
+    section: utils
+    priority: extra
+    formats:
+      - deb
+      - rpm
+    builds:
+      - stayrtr
+      - rtrmon
+      - rtrdump
+    contents:
+      - src: package/stayrtr.service
+        dst: /lib/systemd/system/stayrtr.service
+      - src: package/stayrtr.env
+        dst: /etc/default/stayrtr
+        type: config
+
+dockers:
+  - image_templates: ["ghcr.io/bgp/stayrtr:{{ .Version }}-amd64"]
+    dockerfile: package/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title=stayrtr
+      - --label=org.opencontainers.image.description=Simple RPKI-To-Router server. (Hard fork of GoRTR)
+      - --label=org.opencontainers.image.url=https://github.com/bgp/stayrtr
+      - --label=org.opencontainers.image.source=https://github.com/bgp/stayrtr
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=BSD-3-Clause
+docker_manifests:
+  - name_template: ghcr.io/bgp/stayrtr:{{ .Version }}
+    image_templates:
+      - ghcr.io/bgp/stayrtr:{{ .Version }}-amd64
+  - name_template: ghcr.io/bgp/stayrtr:latest
+    image_templates:
+      - ghcr.io/bgp/stayrtr:{{ .Version }}-amd64
