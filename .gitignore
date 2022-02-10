@@ -16,6 +16,7 @@ Icon
 _obj
 _test
 vendor
+dist
 
 # Architecture specific extensions/prefixes
 *.[568vq]
