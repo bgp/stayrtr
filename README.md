@@ -266,6 +266,20 @@ $ ./rtrmon \
   -primary.refresh 30s
 ```
 
+rtrmon has two endpoints:
+  * `/metrics`: for prometheus metrics
+  * `/diff.json` (default): for a JSON file containing the difference between sources
+
+### diff
+
+The `diff.json` endpoint contains four keys.
+
+  * `metadata-primary`: configuration of the primary source
+  * `metadata-secondary`: configuration of the secondary source
+  * `only-primary`: objects in the primary source but not in the secondary source.
+  * `only-secondary`: objects in the secondary source but not in the primary source.
+
+### Metrics
 By default the Prometheus endpoint is on `http://[host]:9866/metrics`.
 Among others, this endpoint contains the following metrics:
 
@@ -286,6 +300,8 @@ Using these metrics you can visualise or alert on, for example:
   * Convergence
     * Do both my RP instances see the same objects eventually?
     * Are objects first visible in the JSON `difference` (e.g. 1706) seconds ago visible in RTR?
+
+When the objects are not converging, the `diff.json` endpoint may help while investigating the issues.
 
 ### Data sources
 
