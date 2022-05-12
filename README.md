@@ -268,7 +268,7 @@ $ ./rtrmon \
 
 rtrmon has two endpoints:
   * `/metrics`: for prometheus metrics
-  * `/diff.json` (default): for a JSON file containing the difference between sources
+  * `/diff.json` (default, can be overridden by the `-file` flag): for a JSON file containing the difference between sources
 
 ### diff
 
