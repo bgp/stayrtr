@@ -1,6 +1,6 @@
 // rfc8416
 
-package prefixfile
+package cache
 
 import (
 	"encoding/json"

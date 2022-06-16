@@ -2,27 +2,18 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"sync"
-	"syscall"
-	"time"
 
+	"github.com/bgp/stayrtr/cache"
 	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
-	"github.com/bgp/stayrtr/utils"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/bgp/stayrtr/metrics"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -92,49 +83,6 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
-	NumberOfVRPs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_vrps",
-			Help: "Number of VRPs.",
-		},
-		[]string{"ip_version", "filtered", "path"},
-	)
-	LastRefresh = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_refresh",
-			Help: "Last successful request for the given URL.",
-		},
-		[]string{"path"},
-	)
-	LastChange = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_change",
-			Help: "Last change.",
-		},
-		[]string{"path"},
-	)
-	RefreshStatusCode = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "refresh_requests_total",
-			Help: "Total number of HTTP requests by status code",
-		},
-		[]string{"path", "code"},
-	)
-	ClientsMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rtr_clients",
-			Help: "Number of clients connected.",
-		},
-		[]string{"bind"},
-	)
-	PDUsRecv = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rtr_pdus",
-			Help: "PDU received.",
-		},
-		[]string{"type"},
-	)
-
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
@@ -150,346 +98,6 @@ var (
 		"full":    USE_SERIAL_FULL,
 	}
 )
-
-func initMetrics() {
-	prometheus.MustRegister(NumberOfVRPs)
-	prometheus.MustRegister(LastChange)
-	prometheus.MustRegister(LastRefresh)
-	prometheus.MustRegister(RefreshStatusCode)
-	prometheus.MustRegister(ClientsMetric)
-	prometheus.MustRegister(PDUsRecv)
-}
-
-func metricHTTP() {
-	http.Handle(*MetricsPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(*MetricsAddr, nil))
-}
-
-// newSHA256 will return the sha256 sum of the byte slice
-// The return will be converted form a [32]byte to []byte
-func newSHA256(data []byte) []byte {
-	hash := sha256.Sum256(data)
-	return hash[:]
-}
-
-func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
-	buf := bytes.NewBuffer(data)
-	dec := json.NewDecoder(buf)
-
-	var vrplistjson prefixfile.VRPList
-	err := dec.Decode(&vrplistjson)
-	return &vrplistjson, err
-}
-
-func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
-	plen, max := net.IPMask.Size(prefix.Mask)
-
-	if plen == 0 || uint8(plen) > maxLength || maxLength > uint8(max) {
-		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
-		return false
-	}
-	return true
-}
-
-// processData will take a slice of prefix.VRPJson and attempt to convert them to a slice of rtr.VRP.
-// Will check the following:
-// 1 - The prefix is a valid prefix
-// 2 - The ASN is a valid ASN
-// 3 - The MaxLength is valid
-// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, and IPv6 VRPs
-func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
-	filterDuplicates := make(map[string]bool)
-
-	var vrplist []rtr.VRP
-	var countv4 int
-	var countv6 int
-
-	for _, v := range vrplistjson {
-		prefix, err := v.GetPrefix2()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		asn, err := v.GetASN2()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
-		if !isValidPrefixLength(prefix, v.Length) {
-			continue
-		}
-
-		if prefix.IP.To4() != nil {
-			countv4++
-		} else {
-			countv6++
-		}
-
-		key := fmt.Sprintf("%s,%d,%d", prefix, asn, v.Length)
-		_, exists := filterDuplicates[key]
-		if exists {
-			continue
-		}
-		filterDuplicates[key] = true
-
-		vrp := rtr.VRP{
-			Prefix: *prefix,
-			ASN:    asn,
-			MaxLen: v.Length,
-		}
-		vrplist = append(vrplist, vrp)
-	}
-	return vrplist, countv4 + countv6, countv4, countv6
-}
-
-type IdenticalFile struct {
-	File string
-}
-
-func (e IdenticalFile) Error() string {
-	return fmt.Sprintf("File %s is identical to the previous version", e.File)
-}
-
-// Update the state based on the current slurm file and data.
-func (s *state) updateFromNewState() error {
-	sessid := s.server.GetSessionId()
-
-	if s.checktime {
-		buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
-		if err != nil {
-			return err
-		}
-		notafter := buildtime.Add(time.Hour * 24)
-		if time.Now().UTC().After(notafter) {
-			return errors.New(fmt.Sprintf("VRP JSON file is older than 24 hours: %v", buildtime))
-		}
-	}
-
-	vrpsjson := s.lastdata.Data
-	if s.slurm != nil {
-		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
-		asserted := s.slurm.AssertVRPs()
-		log.Infof("Slurm filtering: %v kept, %v removed, %v asserted", len(kept), len(removed), len(asserted))
-		vrpsjson = append(kept, asserted...)
-	}
-
-	vrps, count, countv4, countv6 := processData(vrpsjson)
-
-	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
-
-	s.server.AddVRPs(vrps)
-
-	serial, _ := s.server.GetCurrentSerial(sessid)
-	log.Infof("Updated added, new serial %v", serial)
-	if s.sendNotifs {
-		log.Debugf("Sending notifications to clients")
-		s.server.NotifyClientsLatest()
-	}
-
-	s.lockJson.Lock()
-	s.exported = prefixfile.VRPList{
-		Metadata: prefixfile.MetaData{
-			Counts:    len(vrpsjson),
-			Buildtime: s.lastdata.Metadata.Buildtime,
-		},
-		Data: vrpsjson,
-	}
-
-	s.lockJson.Unlock()
-
-	if s.metricsEvent != nil {
-		var countv4_dup int
-		var countv6_dup int
-		for _, vrp := range vrps {
-			if vrp.Prefix.IP.To4() != nil {
-				countv4_dup++
-			} else if vrp.Prefix.IP.To16() != nil {
-				countv6_dup++
-			}
-		}
-		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin)
-	}
-
-	return nil
-}
-
-func (s *state) updateFile(file string) (bool, error) {
-	log.Debugf("Refreshing cache from %s", file)
-
-	s.lastts = time.Now().UTC()
-	data, code, lastrefresh, err := s.fetchConfig.FetchFile(file)
-	if err != nil {
-		return false, err
-	}
-	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
-	}
-	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
-	}
-
-	hsum := newSHA256(data)
-	if s.lasthash != nil {
-		cres := bytes.Compare(s.lasthash, hsum)
-		if cres == 0 {
-			return false, IdenticalFile{File: file}
-		}
-	}
-
-	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthash, hsum)
-
-	vrplistjson, err := decodeJSON(data)
-	if err != nil {
-		return false, err
-	}
-
-	s.lasthash = hsum
-	s.lastchange = time.Now().UTC()
-	s.lastdata = vrplistjson
-
-	return true, nil
-}
-
-func (s *state) updateSlurm(file string) (bool, error) {
-	log.Debugf("Refreshing slurm from %v", file)
-	data, code, lastrefresh, err := s.fetchConfig.FetchFile(file)
-	if err != nil {
-		return false, err
-	}
-	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
-	}
-	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
-	}
-
-	buf := bytes.NewBuffer(data)
-
-	slurm, err := prefixfile.DecodeJSONSlurm(buf)
-	if err != nil {
-		return false, err
-	}
-	s.slurm = slurm
-	return true, nil
-}
-
-func (s *state) routineUpdate(file string, interval int, slurmFile string) {
-	log.Debugf("Starting refresh routine (file: %v, interval: %vs, slurm: %v)", file, interval, slurmFile)
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGHUP)
-	for {
-		var delay *time.Timer
-		if s.lastchange.IsZero() {
-			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
-			delay = time.NewTimer(time.Duration(30) * time.Second)
-		} else {
-			delay = time.NewTimer(time.Duration(interval) * time.Second)
-		}
-		select {
-		case <-delay.C:
-		case <-signals:
-			log.Debug("Received HUP signal")
-		}
-		delay.Stop()
-		slurmNotPresentOrUpdated := false
-		if slurmFile != "" {
-			var err error
-			slurmNotPresentOrUpdated, err = s.updateSlurm(slurmFile)
-			if err != nil {
-				switch err.(type) {
-				case utils.HttpNotModified:
-					log.Info(err)
-				case utils.IdenticalEtag:
-					log.Info(err)
-				default:
-					log.Errorf("Slurm: %v", err)
-				}
-			}
-		}
-		cacheUpdated, err := s.updateFile(file)
-		if err != nil {
-			switch err.(type) {
-			case utils.HttpNotModified:
-				log.Info(err)
-			case utils.IdenticalEtag:
-				log.Info(err)
-			case IdenticalFile:
-				log.Info(err)
-			default:
-				log.Errorf("Error updating: %v", err)
-			}
-		}
-
-		// Only process the first time after there is either a cache or SLURM
-		// update.
-		if cacheUpdated || slurmNotPresentOrUpdated {
-			err := s.updateFromNewState()
-			if err != nil {
-				log.Errorf("Error updating from new state: %v", err)
-			}
-		}
-	}
-}
-
-func (s *state) exporter(wr http.ResponseWriter, r *http.Request) {
-	s.lockJson.RLock()
-	toExport := s.exported
-	s.lockJson.RUnlock()
-	enc := json.NewEncoder(wr)
-	enc.Encode(toExport)
-}
-
-type state struct {
-	lastdata   *prefixfile.VRPList
-	lasthash   []byte
-	lastchange time.Time
-	lastts     time.Time
-	sendNotifs bool
-	useSerial  int
-
-	fetchConfig *utils.FetchConfig
-
-	server *rtr.Server
-
-	metricsEvent *metricsEvent
-
-	exported prefixfile.VRPList
-	lockJson *sync.RWMutex
-
-	slurm *prefixfile.SlurmConfig
-
-	checktime bool
-}
-
-type metricsEvent struct {
-}
-
-func (m *metricsEvent) ClientConnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
-}
-
-func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
-}
-
-func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
-	PDUsRecv.WithLabelValues(
-		strings.ToLower(
-			strings.Replace(
-				rtr.TypeToString(
-					pdu.GetType()),
-				" ",
-				"_", -1))).Inc()
-}
-
-func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
-	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
-	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
-	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
-	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
-	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -528,51 +136,42 @@ func run() error {
 		ExpireInterval:  uint32(*ExpireRTR),
 	}
 
-	var me *metricsEvent
+	var me *metrics.MetricsEvent
 	var enableHTTP bool
 	if *MetricsAddr != "" {
-		initMetrics()
-		me = &metricsEvent{}
+		//initMetrics()
+		me = &metrics.MetricsEvent{}
 		enableHTTP = true
 	}
 
 	server := rtr.NewServer(sc, me, deh)
 	deh.SetVRPManager(server)
 
-	s := state{
-		server:       server,
-		lastdata:     &prefixfile.VRPList{},
-		metricsEvent: me,
-		sendNotifs:   *SendNotifs,
-		checktime:    *TimeCheck,
-		lockJson:     &sync.RWMutex{},
-
-		fetchConfig: utils.NewFetchConfig(),
-	}
-	s.fetchConfig.UserAgent = *UserAgent
-	s.fetchConfig.Mime = *Mime
-	s.fetchConfig.EnableEtags = *Etag
-	s.fetchConfig.EnableLastModified = *LastModified
+	s := cache.NewVRPCache(server, *TimeCheck, *SendNotifs)
+	s.FetchConfig.UserAgent = *UserAgent
+	s.FetchConfig.Mime = *Mime
+	s.FetchConfig.EnableEtags = *Etag
+	s.FetchConfig.EnableLastModified = *LastModified
 
 	if enableHTTP {
 		if *ExportPath != "" {
-			http.HandleFunc(*ExportPath, s.exporter)
+			http.HandleFunc(*ExportPath, s.Exporter)
 		}
-		go metricHTTP()
+		go metrics.MetricHTTP(*MetricsPath, *MetricsAddr)
 	}
 
 	if *Bind == "" && *BindTLS == "" && *BindSSH == "" {
 		log.Fatalf("Specify at least a bind address")
 	}
 
-	_, err := s.updateFile(*CacheBin)
+	_, err := s.UpdateFile(*CacheBin)
 	if err != nil {
 		switch err.(type) {
-		case utils.HttpNotModified:
+		case cache.HttpNotModified:
 			log.Info(err)
-		case IdenticalFile:
+		case cache.IdenticalFile:
 			log.Info(err)
-		case utils.IdenticalEtag:
+		case cache.IdenticalEtag:
 			log.Info(err)
 		default:
 			log.Errorf("Error updating: %v", err)
@@ -581,12 +180,12 @@ func run() error {
 
 	slurmFile := *Slurm
 	if slurmFile != "" {
-		_, err := s.updateSlurm(slurmFile)
+		_, err := s.UpdateSlurm(slurmFile)
 		if err != nil {
 			switch err.(type) {
-			case utils.HttpNotModified:
+			case cache.HttpNotModified:
 				log.Info(err)
-			case utils.IdenticalEtag:
+			case cache.IdenticalEtag:
 				log.Info(err)
 			default:
 				log.Errorf("Slurm: %v", err)
@@ -598,7 +197,7 @@ func run() error {
 	}
 
 	// Initial calculation of state (after fetching cache + slurm)
-	err = s.updateFromNewState()
+	err = s.UpdateFromNewState()
 	if err != nil {
 		log.Warnf("Error setting up intial state: %s", err)
 	}
@@ -715,7 +314,7 @@ func run() error {
 		}()
 	}
 
-	s.routineUpdate(*CacheBin, *RefreshInterval, slurmFile)
+	s.RoutineUpdate(*CacheBin, *RefreshInterval, slurmFile)
 
 	return nil
 }

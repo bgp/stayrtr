@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/bgp/stayrtr/cache"
 	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
@@ -68,7 +68,7 @@ var (
 )
 
 type Client struct {
-	Data prefixfile.VRPList
+	Data cache.VRPList
 
 	InitSerial bool
 	Serial     uint32
@@ -78,7 +78,7 @@ type Client struct {
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 	switch pdu := pdu.(type) {
 	case *rtr.PDUIPv4Prefix:
-		rj := prefixfile.VRPJson{
+		rj := cache.VRPJson{
 			Prefix: pdu.Prefix.String(),
 			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
@@ -90,7 +90,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			log.Debugf("Received: %v", pdu)
 		}
 	case *rtr.PDUIPv6Prefix:
-		rj := prefixfile.VRPJson{
+		rj := cache.VRPJson{
 			Prefix: pdu.Prefix.String(),
 			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
@@ -146,9 +146,9 @@ func main() {
 	}
 
 	client := &Client{
-		Data: prefixfile.VRPList{
-			Metadata: prefixfile.MetaData{},
-			Data:     make([]prefixfile.VRPJson, 0),
+		Data: cache.VRPList{
+			Metadata: cache.MetaData{},
+			Data:     make([]cache.VRPJson, 0),
 		},
 		InitSerial: *InitSerial,
 		Serial:     uint32(*Serial),

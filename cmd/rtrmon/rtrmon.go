@@ -17,9 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bgp/stayrtr/cache"
 	rtr "github.com/bgp/stayrtr/lib"
-	"github.com/bgp/stayrtr/prefixfile"
-	"github.com/bgp/stayrtr/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -180,11 +179,11 @@ func (t *thresholds) Set(value string) error {
 	return nil
 }
 
-func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
+func decodeJSON(data []byte) (*cache.VRPList, error) {
 	buf := bytes.NewBuffer(data)
 	dec := json.NewDecoder(buf)
 
-	var vrplistjson prefixfile.VRPList
+	var vrplistjson cache.VRPList
 	err := dec.Decode(&vrplistjson)
 	return &vrplistjson, err
 }
@@ -202,7 +201,7 @@ type Client struct {
 	serial    uint32
 	sessionID uint16
 
-	FetchConfig *utils.FetchConfig
+	FetchConfig *cache.FetchConfig
 
 	Path            string
 	RefreshInterval time.Duration
@@ -778,7 +777,7 @@ func main() {
 	lvl, _ := log.ParseLevel(*LogLevel)
 	log.SetLevel(lvl)
 
-	fc := utils.NewFetchConfig()
+	fc := cache.NewFetchConfig()
 	fc.EnableEtags = !*DisableConditionalRequests
 	fc.EnableLastModified = !*DisableConditionalRequests
 	fc.UserAgent = *UserAgent

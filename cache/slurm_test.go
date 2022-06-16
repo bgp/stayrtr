@@ -1,4 +1,4 @@
-package prefixfile
+package cache
 
 import (
 	"os"
