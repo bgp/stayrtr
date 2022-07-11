@@ -107,6 +107,13 @@ var (
 		},
 		[]string{"lhs_url", "rhs_url", "visibility_seconds"},
 	)
+	VRPInGracePeriod = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "rpki_grace_period_vrps",
+			Help: "Number of unique VRPS in grace period by url.",
+		},
+		[]string{"url"},
+	)
 	RTRState = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rtr_state",
@@ -148,6 +155,7 @@ var (
 func init() {
 	prometheus.MustRegister(VRPCount)
 	prometheus.MustRegister(VRPDifferenceForDuration)
+	prometheus.MustRegister(VRPInGracePeriod)
 	prometheus.MustRegister(RTRState)
 	prometheus.MustRegister(RTRSerial)
 	prometheus.MustRegister(RTRSession)
@@ -336,7 +344,7 @@ func (c *Client) Start(id int, ch chan int) {
 			}
 
 			tCurrentUpdate := time.Now().UTC()
-			updatedVrpMap := buildNewVrpMap(c.id, c.vrps, decoded.Data, tCurrentUpdate)
+			updatedVrpMap := c.buildNewVrpMap(decoded.Data, tCurrentUpdate)
 
 			c.compLock.Lock()
 			c.vrps = updatedVrpMap
@@ -356,19 +364,19 @@ func (c *Client) Start(id int, ch chan int) {
 //   * contains all the VRPs in newVRPs
 //   * keeps the firstSeen value for VRPs already in the old map
 //   * keeps elements around for GracePeriod after they are not in the input.
-func buildNewVrpMap(id int, currentVrpMap vrpMap, newVrps []prefixfile.VRPJson, now time.Time) vrpMap {
+func (c *Client) buildNewVrpMap(newVrps []prefixfile.VRPJson, now time.Time) vrpMap {
 	tCurrentUpdate := now.Unix()
 	res := make(vrpMap)
 
 	for _, vrp := range newVrps {
 		asn, err := vrp.GetASN2()
 		if err != nil {
-			log.Errorf("%d: exploration error for %v asn: %v", id, vrp, err)
+			log.Errorf("%d: exploration error for %v asn: %v", c.id, vrp, err)
 			continue
 		}
 		prefix, err := vrp.GetPrefix2()
 		if err != nil {
-			log.Errorf("%d: exploration error for %v prefix: %v", id, vrp, err)
+			log.Errorf("%d: exploration error for %v prefix: %v", c.id, vrp, err)
 			continue
 		}
 
@@ -376,7 +384,7 @@ func buildNewVrpMap(id int, currentVrpMap vrpMap, newVrps []prefixfile.VRPJson, 
 		key := fmt.Sprintf("%s-%d-%d", prefix.String(), maxlen, asn)
 
 		firstSeen := tCurrentUpdate
-		currentEntry, ok := currentVrpMap[key]
+		currentEntry, ok := c.vrps[key]
 		if ok {
 			firstSeen = currentEntry.FirstSeen
 		}
@@ -401,6 +409,8 @@ func buildNewVrpMap(id int, currentVrpMap vrpMap, newVrps []prefixfile.VRPJson, 
 			}
 		}
 	}
+
+	VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 
 	return res
 }
