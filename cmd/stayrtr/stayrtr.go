@@ -255,6 +255,11 @@ func (e IdenticalFile) Error() string {
 func (s *state) updateFromNewState() error {
 	sessid := s.server.GetSessionId()
 
+	vrpsjson := s.lastdata.Data
+	if (vrpsjson == nil) {
+		return nil
+	}
+
 	if s.checktime {
 		buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 		if err != nil {
@@ -266,7 +271,6 @@ func (s *state) updateFromNewState() error {
 		}
 	}
 
-	vrpsjson := s.lastdata.Data
 	if s.slurm != nil {
 		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
 		asserted := s.slurm.AssertVRPs()
@@ -600,7 +604,7 @@ func run() error {
 	// Initial calculation of state (after fetching cache + slurm)
 	err = s.updateFromNewState()
 	if err != nil {
-		log.Warnf("Error setting up intial state: %s", err)
+		log.Warnf("Error setting up initial state: %s", err)
 	}
 
 	if *Bind != "" {
