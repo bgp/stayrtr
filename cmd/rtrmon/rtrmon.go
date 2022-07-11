@@ -3,15 +3,19 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,6 +45,8 @@ var (
 	version    = ""
 	buildinfos = ""
 	AppVersion = "RTRmon " + version + " " + buildinfos
+	//go:embed index.html.tmpl
+	IndexTemplate string
 
 	OneOff      = flag.Bool("oneoff", false, "dump as json and exits")
 	Addr        = flag.String("addr", ":9866", "Server address")
@@ -154,6 +160,7 @@ func (t *thresholds) String() string {
 	res := []byte("")
 	for idx, tr := range *t {
 		res = strconv.AppendInt(res, tr, 10)
+
 		if idx < len(*t)-1 {
 			res = append(res, ","...)
 		}
@@ -176,6 +183,9 @@ func (t *thresholds) Set(value string) error {
 
 		*t = append(*t, threshold)
 	}
+
+	// Sort the breaks in ascending order.
+	sort.Slice(*t, func(i, j int) bool { return (*t)[i] < (*t)[j] })
 
 	return nil
 }
@@ -853,10 +863,28 @@ func main() {
 	go func() {
 		http.HandleFunc(fmt.Sprintf("/%s", *OutFile), cmp.ServeDiff)
 		http.Handle(*MetricsPath, promhttp.Handler())
+		http.HandleFunc("/", ServeIndex)
 
 		log.Fatal(http.ListenAndServe(*Addr, nil))
 	}()
 
 	log.Fatal(cmp.Start())
 
+}
+
+type IndexTemplateVars struct {
+	MetricsPath string
+	OutFile     string
+	Addr        string
+}
+
+func ServeIndex(wr http.ResponseWriter, req *http.Request) {
+	tmpl, err := template.New("index").Parse(IndexTemplate)
+	if err == nil {
+		err = tmpl.Execute(wr, IndexTemplateVars{*MetricsPath, *OutFile, *Addr})
+	}
+
+	if err != nil {
+		io.WriteString(wr, IndexTemplate)
+	}
 }

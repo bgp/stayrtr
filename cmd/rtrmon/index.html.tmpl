@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>rtrmon</title>
+</head>
+<body>
+    <h1><a href="https://github.com/bgp/stayrtr">rtrmon</a></h1>
+    <ul>
+        <li><a href="{{ .MetricsPath }}">prometheus metrics</a></li>
+        <li><a href="{{ .OutFile }}">diff file</a></li>
+    </ul>
+
+    <h2>usage</h2>
+    <h3>diff:</h3>
+    The <kbd>/{{ .OutFile }}</kbd> endpoint contains four keys:
+
+    <pre>
+    metadata-primary: configuration of the primary source
+    metadata-secondary: configuration of the secondary source
+    only-primary: objects in the primary source but not in the secondary source.
+    only-secondary: objects in the secondary source but not in the primary source.
+    </pre>
+
+    <h3>metrics:</h3>
+    By default the Prometheus endpoint is on <kbd>http://[host]{{ .Addr }}{{ .MetricsPath }}</kbd>. Among others, this endpoint contains the following metrics:
+
+    <pre>
+    rpki_vrps: Current number of VRPS and current difference between the primary and secondary.
+    rtr_serial: Serial of the rtr session (when applicable).
+    rtr_session: Session ID of the RTR session.
+    rtr_state: State of the rtr session (up/down).
+    update: Timestamp of the last update.
+    vrp_diff: The number of VRPs which were seen in lhs at least visibility_seconds ago not in rhs.
+    </pre>
+</body>
+</html>
