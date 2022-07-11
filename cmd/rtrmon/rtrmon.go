@@ -55,6 +55,7 @@ var (
 
 	UserAgent                  = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	DisableConditionalRequests = flag.Bool("disable.conditional.requests", false, "Disable conditional requests (using If-None-Match/If-Modified-Since headers)")
+	GracePeriod                = flag.Duration("grace.period", time.Minute*20, "Grace period during which objects removed from a source are not considered for the diff")
 
 	PrimaryHost            = flag.String("primary.host", "tcp://rtr.rpki.cloudflare.com:8282", "primary server")
 	PrimaryValidateCert    = flag.Bool("primary.tls.validate", true, "Validate TLS")
@@ -222,9 +223,9 @@ type Client struct {
 	lastUpdate time.Time
 
 	compLock    *sync.RWMutex
-	vrps        map[string]*VRPJsonSimple
+	vrps        vrpMap
 	compRtrLock *sync.RWMutex
-	vrpsRtr     map[string]*VRPJsonSimple
+	vrpsRtr     vrpMap
 
 	unlock chan bool
 	ch     chan int
@@ -238,9 +239,9 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		compLock:    &sync.RWMutex{},
-		vrps:        make(map[string]*VRPJsonSimple),
+		vrps:        make(vrpMap),
 		compRtrLock: &sync.RWMutex{},
-		vrpsRtr:     make(map[string]*VRPJsonSimple),
+		vrpsRtr:     make(vrpMap),
 	}
 }
 
@@ -334,42 +335,12 @@ func (c *Client) Start(id int, ch chan int) {
 				continue
 			}
 
-			c.lastUpdate = time.Now().UTC()
-			tCurrentUpdate := time.Now().UTC().Unix()
+			tCurrentUpdate := time.Now().UTC()
+			updatedVrpMap := buildNewVrpMap(c.id, c.vrps, decoded.Data, tCurrentUpdate)
 
-			tmpVrpMap := make(map[string]*VRPJsonSimple)
-			for _, vrp := range decoded.Data {
-				asn, err := vrp.GetASN2()
-				if err != nil {
-					log.Errorf("%d: exploration error for %v asn: %v", id, vrp, err)
-					continue
-				}
-				prefix, err := vrp.GetPrefix2()
-				if err != nil {
-					log.Errorf("%d: exploration error for %v prefix: %v", id, vrp, err)
-					continue
-				}
-
-				maxlen := vrp.GetMaxLen()
-				key := fmt.Sprintf("%s-%d-%d", prefix.String(), maxlen, asn)
-
-				firstSeen := tCurrentUpdate
-				currentEntry, ok := c.vrps[key]
-				if ok {
-					firstSeen = currentEntry.FirstSeen
-				}
-
-				vrpSimple := VRPJsonSimple{
-					Prefix:    prefix.String(),
-					ASN:       asn,
-					Length:    uint8(maxlen),
-					FirstSeen: firstSeen,
-				}
-				tmpVrpMap[key] = &vrpSimple
-			}
 			c.compLock.Lock()
-			c.vrps = tmpVrpMap
-			c.lastUpdate = time.Now().UTC()
+			c.vrps = updatedVrpMap
+			c.lastUpdate = tCurrentUpdate
 			c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
@@ -378,6 +349,60 @@ func (c *Client) Start(id int, ch chan int) {
 
 	}
 
+}
+
+// Build the new vrpMap
+// The result:
+//   * contains all the VRPs in newVRPs
+//   * keeps the firstSeen value for VRPs already in the old map
+//   * keeps elements around for GracePeriod after they are not in the input.
+func buildNewVrpMap(id int, currentVrpMap vrpMap, newVrps []prefixfile.VRPJson, now time.Time) vrpMap {
+	tCurrentUpdate := now.Unix()
+	res := make(vrpMap)
+
+	for _, vrp := range newVrps {
+		asn, err := vrp.GetASN2()
+		if err != nil {
+			log.Errorf("%d: exploration error for %v asn: %v", id, vrp, err)
+			continue
+		}
+		prefix, err := vrp.GetPrefix2()
+		if err != nil {
+			log.Errorf("%d: exploration error for %v prefix: %v", id, vrp, err)
+			continue
+		}
+
+		maxlen := vrp.GetMaxLen()
+		key := fmt.Sprintf("%s-%d-%d", prefix.String(), maxlen, asn)
+
+		firstSeen := tCurrentUpdate
+		currentEntry, ok := currentVrpMap[key]
+		if ok {
+			firstSeen = currentEntry.FirstSeen
+		}
+
+		res[key] = &VRPJsonSimple{
+			Prefix:    prefix.String(),
+			ASN:       asn,
+			Length:    uint8(maxlen),
+			FirstSeen: firstSeen,
+			LastSeen:  tCurrentUpdate,
+		}
+	}
+
+	// Copy objects that are within the grace period to the new map
+	gracePeriodEnds := tCurrentUpdate - int64(GracePeriod.Seconds())
+	inGracePeriod := 0
+	for k, entry := range c.vrps {
+		if _, ok := res[k]; !ok { // no longer present
+			if (*entry).LastSeen >= gracePeriodEnds {
+				res[k] = entry
+				inGracePeriod++
+			}
+		}
+	}
+
+	return res
 }
 
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
@@ -423,7 +448,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		c.compRtrLock.Lock()
 		c.serial = pdu.SerialNumber
-		tmpVrpMap := make(map[string]*VRPJsonSimple, len(c.vrpsRtr))
+		tmpVrpMap := make(vrpMap, len(c.vrpsRtr))
 		for key, vrp := range c.vrpsRtr {
 			tmpVrpMap[key] = vrp
 		}
@@ -504,7 +529,7 @@ func (c *Client) continuousRTR(cs *rtr.ClientSession) {
 	}
 }
 
-func (c *Client) GetData() (map[string]*VRPJsonSimple, *diffMetadata) {
+func (c *Client) GetData() (vrpMap, *diffMetadata) {
 	c.compLock.RLock()
 	defer c.compLock.RUnlock()
 	vrps := c.vrps
@@ -563,7 +588,7 @@ func countFirstSeenOnOrBefore(vrps []*VRPJsonSimple, thresholdTimestamp int64) f
 	return float64(count)
 }
 
-func Diff(a, b map[string]*VRPJsonSimple) []*VRPJsonSimple {
+func Diff(a, b vrpMap) []*VRPJsonSimple {
 	onlyInA := make([]*VRPJsonSimple, 0)
 	for key, vrp := range a {
 		if _, ok := b[key]; !ok {
@@ -590,7 +615,9 @@ type VRPJsonSimple struct {
 	Length    uint8  `json:"max-length"`
 	Prefix    string `json:"prefix"`
 	FirstSeen int64  `json:"first-seen"`
+	LastSeen  int64  `json:"last-seen"`
 }
+type vrpMap map[string]*VRPJsonSimple
 
 type diffExport struct {
 	MetadataPrimary   *diffMetadata    `json:"metadata-primary"`
