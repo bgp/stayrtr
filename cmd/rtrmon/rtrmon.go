@@ -294,7 +294,7 @@ func (c *Client) Start(id int, ch chan int) {
 					serverKeyHash := ssh.FingerprintSHA256(key)
 					if c.ValidateSSH {
 						if serverKeyHash != fmt.Sprintf("SHA256:%v", c.SSHServerKey) {
-							return errors.New(fmt.Sprintf("Server key hash %v is different than expected key hash SHA256:%v", serverKeyHash, c.SSHServerKey))
+							return fmt.Errorf("server key hash %v is different than expected key hash SHA256:%v", serverKeyHash, c.SSHServerKey)
 						}
 					}
 					log.Infof("%d: Connected to server %v via ssh. Fingerprint: %v", id, remote.String(), serverKeyHash)
