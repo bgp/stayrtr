@@ -231,9 +231,9 @@ type Client struct {
 	lastUpdate time.Time
 
 	compLock    *sync.RWMutex
-	vrps        vrpMap
+	vrps        VRPMap
 	compRtrLock *sync.RWMutex
-	vrpsRtr     vrpMap
+	vrpsRtr     VRPMap
 
 	unlock chan bool
 	ch     chan int
@@ -247,9 +247,9 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		compLock:    &sync.RWMutex{},
-		vrps:        make(vrpMap),
+		vrps:        make(VRPMap),
 		compRtrLock: &sync.RWMutex{},
-		vrpsRtr:     make(vrpMap),
+		vrpsRtr:     make(VRPMap),
 	}
 }
 
@@ -344,7 +344,8 @@ func (c *Client) Start(id int, ch chan int) {
 			}
 
 			tCurrentUpdate := time.Now().UTC()
-			updatedVrpMap := c.buildNewVrpMap(decoded.Data, tCurrentUpdate)
+			updatedVrpMap, inGracePeriod := BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
+			VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 
 			c.compLock.Lock()
 			c.vrps = updatedVrpMap
@@ -364,19 +365,19 @@ func (c *Client) Start(id int, ch chan int) {
 //   * contains all the VRPs in newVRPs
 //   * keeps the firstSeen value for VRPs already in the old map
 //   * keeps elements around for GracePeriod after they are not in the input.
-func (c *Client) buildNewVrpMap(newVrps []prefixfile.VRPJson, now time.Time) vrpMap {
+func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRPJson, now time.Time) (VRPMap, int) {
 	tCurrentUpdate := now.Unix()
-	res := make(vrpMap)
+	res := make(VRPMap)
 
 	for _, vrp := range newVrps {
 		asn, err := vrp.GetASN2()
 		if err != nil {
-			log.Errorf("%d: exploration error for %v asn: %v", c.id, vrp, err)
+			log.Errorf("exploration error for %v asn: %v", vrp, err)
 			continue
 		}
 		prefix, err := vrp.GetPrefix2()
 		if err != nil {
-			log.Errorf("%d: exploration error for %v prefix: %v", c.id, vrp, err)
+			log.Errorf("exploration error for %v prefix: %v", vrp, err)
 			continue
 		}
 
@@ -384,7 +385,7 @@ func (c *Client) buildNewVrpMap(newVrps []prefixfile.VRPJson, now time.Time) vrp
 		key := fmt.Sprintf("%s-%d-%d", prefix.String(), maxlen, asn)
 
 		firstSeen := tCurrentUpdate
-		currentEntry, ok := c.vrps[key]
+		currentEntry, ok := currentVrps[key]
 		if ok {
 			firstSeen = currentEntry.FirstSeen
 		}
@@ -401,7 +402,7 @@ func (c *Client) buildNewVrpMap(newVrps []prefixfile.VRPJson, now time.Time) vrp
 	// Copy objects that are within the grace period to the new map
 	gracePeriodEnds := tCurrentUpdate - int64(GracePeriod.Seconds())
 	inGracePeriod := 0
-	for k, entry := range c.vrps {
+	for k, entry := range currentVrps {
 		if _, ok := res[k]; !ok { // no longer present
 			if (*entry).LastSeen >= gracePeriodEnds {
 				res[k] = entry
@@ -410,9 +411,7 @@ func (c *Client) buildNewVrpMap(newVrps []prefixfile.VRPJson, now time.Time) vrp
 		}
 	}
 
-	VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
-
-	return res
+	return res, inGracePeriod
 }
 
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
@@ -458,7 +457,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 		c.compRtrLock.Lock()
 		c.serial = pdu.SerialNumber
-		tmpVrpMap := make(vrpMap, len(c.vrpsRtr))
+		tmpVrpMap := make(VRPMap, len(c.vrpsRtr))
 		for key, vrp := range c.vrpsRtr {
 			tmpVrpMap[key] = vrp
 		}
@@ -539,7 +538,7 @@ func (c *Client) continuousRTR(cs *rtr.ClientSession) {
 	}
 }
 
-func (c *Client) GetData() (vrpMap, *diffMetadata) {
+func (c *Client) GetData() (VRPMap, *diffMetadata) {
 	c.compLock.RLock()
 	defer c.compLock.RUnlock()
 	vrps := c.vrps
@@ -598,7 +597,7 @@ func countFirstSeenOnOrBefore(vrps []*VRPJsonSimple, thresholdTimestamp int64) f
 	return float64(count)
 }
 
-func Diff(a, b vrpMap) []*VRPJsonSimple {
+func Diff(a, b VRPMap) []*VRPJsonSimple {
 	onlyInA := make([]*VRPJsonSimple, 0)
 	for key, vrp := range a {
 		if _, ok := b[key]; !ok {
@@ -627,7 +626,7 @@ type VRPJsonSimple struct {
 	FirstSeen int64  `json:"first-seen"`
 	LastSeen  int64  `json:"last-seen"`
 }
-type vrpMap map[string]*VRPJsonSimple
+type VRPMap map[string]*VRPJsonSimple
 
 type diffExport struct {
 	MetadataPrimary   *diffMetadata    `json:"metadata-primary"`

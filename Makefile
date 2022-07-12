@@ -35,6 +35,8 @@ vet:
 test:
 	go test -v github.com/bgp/stayrtr/lib
 	go test -v github.com/bgp/stayrtr/prefixfile
+	go test -v github.com/bgp/stayrtr/cmd/rtrmon
+	go test -v github.com/bgp/stayrtr/cmd/stayrtr
 
 .PHONY: prepare
 prepare:
