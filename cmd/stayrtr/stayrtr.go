@@ -684,7 +684,7 @@ func run() error {
 						if k == "" {
 							continue
 						}
-						if strings.HasPrefix(fmt.Sprintf("%v %v", key.Type(), keyBase64), k) {
+						if strings.HasPrefix(k, fmt.Sprintf("%v %v", key.Type(), keyBase64)) {
 							log.Infof("Connected (ssh-key): %v/%v with key %v %v (matched with line %v)",
 								conn.User(), conn.RemoteAddr(), key.Type(), keyBase64, i+1)
 							noKeys = true
