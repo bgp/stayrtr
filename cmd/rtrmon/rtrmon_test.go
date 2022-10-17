@@ -55,14 +55,16 @@ func TestBuildNewVrpMap_firsSeen_lastSeen(t *testing.T) {
 	// All have firstSeen + lastSeen equal to t0
 	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff))
 	assertLastSeenMatchesTimeCount(t, res, t0, len(stuff))
+	assertVisibleMatchesTimeCount(t, res, len(stuff))
 
 	// Supply same data again later
 	t1 := t0.Add(time.Minute * 10)
 	res, _ = BuildNewVrpMap(log, res, stuff, t1)
 
-	// FirstSeen is constant, LastSeen gets updated
+	// FirstSeen is constant, LastSeen gets updated, none removed
 	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff))
 	assertLastSeenMatchesTimeCount(t, res, t1, len(stuff))
+	assertVisibleMatchesTimeCount(t, res, len(stuff))
 
 	// Supply one new VRP, expect one at new time, others at old time
 	otherStuff := []prefixfile.VRPJson{
@@ -82,6 +84,7 @@ func TestBuildNewVrpMap_firsSeen_lastSeen(t *testing.T) {
 
 	assertFirstSeenMatchesTimeCount(t, res, t2, len(otherStuff))
 	assertLastSeenMatchesTimeCount(t, res, t2, len(otherStuff))
+	assertVisibleMatchesTimeCount(t, res, len(otherStuff))
 }
 
 func assertFirstSeenMatchesTimeCount(t *testing.T, vrps VRPMap, pit time.Time, expected int) {
@@ -95,6 +98,13 @@ func assertLastSeenMatchesTimeCount(t *testing.T, vrps VRPMap, pit time.Time, ex
 	actual := countMatches(vrps, func(vrp *VRPJsonSimple) bool { return vrp.LastSeen == pit.Unix() })
 	if actual != expected {
 		t.Errorf("Expected %d VRPs to have LastSeen of %v, actual: %d", expected, pit, actual)
+	}
+}
+
+func assertVisibleMatchesTimeCount(t *testing.T, vrps VRPMap, expected int) {
+	actual := countMatches(vrps, func(vrp *VRPJsonSimple) bool { return vrp.Visible })
+	if actual != expected {
+		t.Errorf("Expected %d VRPs to be visible, actual: %d", expected, actual)
 	}
 }
 
