@@ -395,6 +395,7 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 		firstSeen := tCurrentUpdate
 		currentEntry, ok := currentVrps[key]
 		if ok && currentEntry.Visible {
+			// VRP is still visible, so keep the existing `FirstSeen`.
 			firstSeen = currentEntry.FirstSeen
 		}
 
