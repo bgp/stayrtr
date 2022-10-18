@@ -436,13 +436,13 @@ func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRP
 			continue
 		}
 
-		updated := *vrp
-		if updated.Visible {
-			updated.LastSeen = tCurrentUpdate
+		copy := *vrp
+		if copy.Visible {
+			copy.LastSeen = tCurrentUpdate
 		} else {
 			inGracePeriod++
 		}
-		res[key] = &updated
+		res[key] = &copy
 	}
 
 	return res, inGracePeriod
