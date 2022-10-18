@@ -55,7 +55,7 @@ var (
 
 	UserAgent                  = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	DisableConditionalRequests = flag.Bool("disable.conditional.requests", false, "Disable conditional requests (using If-None-Match/If-Modified-Since headers)")
-	GracePeriod                = flag.Duration("grace.period", time.Minute*20, "Grace period during which objects removed from a source are not considered for the diff")
+	GracePeriod                = flag.Duration("grace.period", 1*time.Hour, "Grace period during which objects removed from a source are not considered for the diff")
 
 	PrimaryHost            = flag.String("primary.host", "tcp://rtr.rpki.cloudflare.com:8282", "primary server")
 	PrimaryValidateCert    = flag.Bool("primary.tls.validate", true, "Validate TLS")
@@ -885,6 +885,12 @@ func main() {
 
 	lvl, _ := log.ParseLevel(*LogLevel)
 	log.SetLevel(lvl)
+
+	highestVisibilityThreshold := time.Second * time.Duration(visibilityThresholds[len(visibilityThresholds) - 1])
+	if highestVisibilityThreshold > *GracePeriod {
+		log.Warnf("Highest visibility threshold %v greater than grace period %v, adjusting grace period", highestVisibilityThreshold, GracePeriod)
+		*GracePeriod = highestVisibilityThreshold
+	}
 
 	fc := utils.NewFetchConfig()
 	fc.EnableEtags = !*DisableConditionalRequests
