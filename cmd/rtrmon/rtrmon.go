@@ -55,7 +55,7 @@ var (
 
 	UserAgent                  = flag.String("useragent", fmt.Sprintf("StayRTR-%v (+https://github.com/bgp/stayrtr)", AppVersion), "User-Agent header")
 	DisableConditionalRequests = flag.Bool("disable.conditional.requests", false, "Disable conditional requests (using If-None-Match/If-Modified-Since headers)")
-	GracePeriod                = flag.Duration("grace.period", time.Minute*20, "Grace period during which objects removed from a source are not considered for the diff")
+	GracePeriod                = flag.Duration("grace.period", 1*time.Hour, "Grace period during which objects removed from a source are not considered for the diff")
 
 	PrimaryHost            = flag.String("primary.host", "tcp://rtr.rpki.cloudflare.com:8282", "primary server")
 	PrimaryValidateCert    = flag.Bool("primary.tls.validate", true, "Validate TLS")
@@ -331,20 +331,28 @@ func (c *Client) Start(id int, ch chan int) {
 			}
 		} else {
 			log.Infof("%d: Fetching %s", c.id, c.Path)
-			data, _, _, err := c.FetchConfig.FetchFile(c.Path)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			log.Debug(data)
-			decoded, err := decodeJSON(data)
-			if err != nil {
+			data, statusCode, _, err := c.FetchConfig.FetchFile(c.Path)
+			if err != nil && statusCode != 304 {
 				log.Error(err)
 				continue
 			}
 
+			var updatedVrpMap VRPMap
+			var inGracePeriod int
 			tCurrentUpdate := time.Now().UTC()
-			updatedVrpMap, inGracePeriod := BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
+			if statusCode == 304 {
+				updatedVrpMap, inGracePeriod = UpdateCurrentVrpMap(log.WithField("client", c.id), c.vrps, tCurrentUpdate)
+			} else {
+				log.Debug(data)
+				decoded, err := decodeJSON(data)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+
+				updatedVrpMap, inGracePeriod = BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
+			}
+
 			VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 
 			c.compLock.Lock()
@@ -386,7 +394,8 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 
 		firstSeen := tCurrentUpdate
 		currentEntry, ok := currentVrps[key]
-		if ok {
+		if ok && currentEntry.Visible {
+			// VRP is still visible, so keep the existing `FirstSeen`.
 			firstSeen = currentEntry.FirstSeen
 		}
 
@@ -396,6 +405,7 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 			Length:    uint8(maxlen),
 			FirstSeen: firstSeen,
 			LastSeen:  tCurrentUpdate,
+			Visible:   true,
 		}
 	}
 
@@ -404,11 +414,35 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 	inGracePeriod := 0
 	for k, entry := range currentVrps {
 		if _, ok := res[k]; !ok { // no longer present
-			if (*entry).LastSeen >= gracePeriodEnds {
+			if entry.LastSeen >= gracePeriodEnds {
+				entry.Visible = false
 				res[k] = entry
 				inGracePeriod++
 			}
 		}
+	}
+
+	return res, inGracePeriod
+}
+
+func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRPMap, int) {
+	tCurrentUpdate := now.Unix()
+	gracePeriodEnds := tCurrentUpdate - int64(GracePeriod.Seconds())
+	inGracePeriod := 0
+	res := make(VRPMap)
+
+	for key, vrp := range currentVrps {
+		if !vrp.Visible && vrp.LastSeen < gracePeriodEnds {
+			continue
+		}
+
+		copy := *vrp
+		if copy.Visible {
+			copy.LastSeen = tCurrentUpdate
+		} else {
+			inGracePeriod++
+		}
+		res[key] = &copy
 	}
 
 	return res, inGracePeriod
@@ -422,6 +456,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			ASN:       pdu.ASN,
 			Length:    pdu.MaxLen,
 			FirstSeen: time.Now().Unix(),
+			Visible:   true,
 		}
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
@@ -440,6 +475,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			ASN:       pdu.ASN,
 			Length:    pdu.MaxLen,
 			FirstSeen: time.Now().Unix(),
+			Visible:   true,
 		}
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
@@ -568,7 +604,7 @@ type Comparator struct {
 	OneOff bool
 
 	diffLock         *sync.RWMutex
-	onlyIn1, onlyIn2 []*VRPJsonSimple
+	onlyIn1, onlyIn2 VRPMap
 	md1              *diffMetadata
 	md2              *diffMetadata
 }
@@ -585,26 +621,53 @@ func NewComparator(c1, c2 *Client) *Comparator {
 	}
 }
 
-func countFirstSeenOnOrBefore(vrps []*VRPJsonSimple, thresholdTimestamp int64) float64 {
+func isDefinitelyVisible(vrp *VRPJsonSimple, thresholdTimestamp int64) bool {
+	return vrp != nil && vrp.Visible && vrp.FirstSeen <= thresholdTimestamp
+}
+
+func isDefinitelyNotVisisble(vrp *VRPJsonSimple, thresholdTimestamp int64) bool {
+	return vrp == nil || (!vrp.Visible && vrp.LastSeen <= thresholdTimestamp)
+}
+
+func countUnmatched(vrps VRPMap, others VRPMap, thresholdTimestamp int64) float64 {
 	count := 0
 
-	for _, vrp := range vrps {
-		if vrp.FirstSeen <= thresholdTimestamp {
-			count++
+	for key, vrp := range vrps {
+		other := others[key]
+		if isDefinitelyVisible(vrp, thresholdTimestamp) {
+			// VRP is definitely visible, count if other side is definitely not visible
+			if isDefinitelyNotVisisble(other, thresholdTimestamp) {
+				count++
+			}
+		} else if isDefinitelyNotVisisble(vrp, thresholdTimestamp) {
+			// VRP is definitely not visible, count if other side is definitely visible
+			if isDefinitelyVisible(other, thresholdTimestamp) {
+				count++
+			}
 		}
 	}
 
 	return float64(count)
 }
 
-func Diff(a, b VRPMap) []*VRPJsonSimple {
-	onlyInA := make([]*VRPJsonSimple, 0)
-	for key, vrp := range a {
-		if _, ok := b[key]; !ok {
-			onlyInA = append(onlyInA, vrp)
+func Diff(a, b VRPMap) VRPMap {
+	onlyInA := make(VRPMap)
+	for key, vrpA := range a {
+		if vrpA.Visible {
+			if vrpB, ok := b[key]; !ok || !vrpB.Visible {
+				onlyInA[key] = vrpA
+			}
 		}
 	}
 	return onlyInA
+}
+
+func VRPArray(a VRPMap) []*VRPJsonSimple {
+	result := make([]*VRPJsonSimple, 0)
+	for _, vrp := range a {
+		result = append(result, vrp)
+	}
+	return result
 }
 
 type diffMetadata struct {
@@ -625,6 +688,7 @@ type VRPJsonSimple struct {
 	Prefix    string `json:"prefix"`
 	FirstSeen int64  `json:"first-seen"`
 	LastSeen  int64  `json:"last-seen"`
+	Visible   bool   `json:"visible"`
 }
 type VRPMap map[string]*VRPJsonSimple
 
@@ -648,8 +712,8 @@ func (c *Comparator) ServeDiff(wr http.ResponseWriter, req *http.Request) {
 	export := diffExport{
 		MetadataPrimary:   md1,
 		MetadataSecondary: md2,
-		OnlyInPrimary:     d1,
-		OnlyInSecondary:   d2,
+		OnlyInPrimary:     VRPArray(d1),
+		OnlyInSecondary:   VRPArray(d2),
 	}
 
 	wr.Header().Add("content-type", "application/json")
@@ -720,14 +784,14 @@ func (c *Comparator) Compare() {
 							"lhs_url":            md1.URL,
 							"rhs_url":            md2.URL,
 							"visibility_seconds": strconv.FormatInt(visibleFor, 10),
-						}).Set(countFirstSeenOnOrBefore(onlyIn1, thresholdTimestamp))
+						}).Set(countUnmatched(onlyIn1, vrps2, thresholdTimestamp))
 
 					VRPDifferenceForDuration.With(
 						prometheus.Labels{
 							"lhs_url":            md2.URL,
 							"rhs_url":            md1.URL,
 							"visibility_seconds": strconv.FormatInt(visibleFor, 10),
-						}).Set(countFirstSeenOnOrBefore(onlyIn2, thresholdTimestamp))
+						}).Set(countUnmatched(onlyIn2, vrps1, thresholdTimestamp))
 				}
 			}
 
@@ -823,6 +887,12 @@ func main() {
 
 	lvl, _ := log.ParseLevel(*LogLevel)
 	log.SetLevel(lvl)
+
+	highestVisibilityThreshold := time.Second * time.Duration(visibilityThresholds[len(visibilityThresholds)-1])
+	if highestVisibilityThreshold > *GracePeriod {
+		log.Warnf("Highest visibility threshold %v greater than grace period %v, adjusting grace period", highestVisibilityThreshold, GracePeriod)
+		*GracePeriod = highestVisibilityThreshold
+	}
 
 	fc := utils.NewFetchConfig()
 	fc.EnableEtags = !*DisableConditionalRequests
