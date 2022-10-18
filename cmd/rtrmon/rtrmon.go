@@ -331,26 +331,33 @@ func (c *Client) Start(id int, ch chan int) {
 			}
 		} else {
 			log.Infof("%d: Fetching %s", c.id, c.Path)
-			data, _, _, err := c.FetchConfig.FetchFile(c.Path)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			log.Debug(data)
-			decoded, err := decodeJSON(data)
-			if err != nil {
+			data, statusCode, _, err := c.FetchConfig.FetchFile(c.Path)
+			if err != nil && statusCode != 304 {
 				log.Error(err)
 				continue
 			}
 
+			var updatedVrpMap VRPMap;
+			var inGracePeriod int;
 			tCurrentUpdate := time.Now().UTC()
-			updatedVrpMap, inGracePeriod := BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
-			VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
+			if statusCode == 304 {
+				updatedVrpMap, inGracePeriod = UpdateCurrentVrpMap(log.WithField("client", c.id), c.vrps, tCurrentUpdate)
+			} else {
+				log.Debug(data)
+				decoded, err := decodeJSON(data)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
 
-			c.compLock.Lock()
-			c.vrps = updatedVrpMap
-			c.lastUpdate = tCurrentUpdate
-			c.compLock.Unlock()
+				updatedVrpMap, inGracePeriod = BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
+				VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
+			}
+
+				c.compLock.Lock()
+				c.vrps = updatedVrpMap
+				c.lastUpdate = tCurrentUpdate
+				c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
 			}
@@ -414,6 +421,25 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 	}
 
 	return res, inGracePeriod
+}
+
+// Warning: mutates `currentVrps` and returns it
+func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRPMap, int) {
+	tCurrentUpdate := now.Unix()
+	gracePeriodEnds := tCurrentUpdate - int64(GracePeriod.Seconds())
+	inGracePeriod := 0
+
+	for key, vrp := range currentVrps {
+		if vrp.Visible {
+			vrp.LastSeen = tCurrentUpdate
+		} else if vrp.LastSeen >= gracePeriodEnds {
+			inGracePeriod++
+		} else {
+			delete(currentVrps, key)
+		}
+	}
+
+	return currentVrps, inGracePeriod
 }
 
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
