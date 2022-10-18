@@ -351,8 +351,9 @@ func (c *Client) Start(id int, ch chan int) {
 				}
 
 				updatedVrpMap, inGracePeriod = BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
-				VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 			}
+
+			VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 
 			c.compLock.Lock()
 			c.vrps = updatedVrpMap
