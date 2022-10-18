@@ -337,8 +337,8 @@ func (c *Client) Start(id int, ch chan int) {
 				continue
 			}
 
-			var updatedVrpMap VRPMap;
-			var inGracePeriod int;
+			var updatedVrpMap VRPMap
+			var inGracePeriod int
 			tCurrentUpdate := time.Now().UTC()
 			if statusCode == 304 {
 				updatedVrpMap, inGracePeriod = UpdateCurrentVrpMap(log.WithField("client", c.id), c.vrps, tCurrentUpdate)
@@ -354,10 +354,10 @@ func (c *Client) Start(id int, ch chan int) {
 				VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
 			}
 
-				c.compLock.Lock()
-				c.vrps = updatedVrpMap
-				c.lastUpdate = tCurrentUpdate
-				c.compLock.Unlock()
+			c.compLock.Lock()
+			c.vrps = updatedVrpMap
+			c.lastUpdate = tCurrentUpdate
+			c.compLock.Unlock()
 			if ch != nil {
 				ch <- id
 			}
@@ -431,7 +431,7 @@ func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRP
 
 	for key, vrp := range currentVrps {
 		if !vrp.Visible && vrp.LastSeen < gracePeriodEnds {
-			continue;
+			continue
 		}
 
 		updated := *vrp
@@ -440,7 +440,7 @@ func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRP
 		} else {
 			inGracePeriod++
 		}
-		res[key] = &updated;
+		res[key] = &updated
 	}
 
 	return res, inGracePeriod
@@ -620,11 +620,11 @@ func NewComparator(c1, c2 *Client) *Comparator {
 }
 
 func isDefinitelyVisible(vrp *VRPJsonSimple, thresholdTimestamp int64) bool {
-	return vrp != nil && vrp.Visible && vrp.FirstSeen <= thresholdTimestamp;
+	return vrp != nil && vrp.Visible && vrp.FirstSeen <= thresholdTimestamp
 }
 
 func isDefinitelyNotVisisble(vrp *VRPJsonSimple, thresholdTimestamp int64) bool {
-	return vrp == nil || (!vrp.Visible && vrp.LastSeen <= thresholdTimestamp);
+	return vrp == nil || (!vrp.Visible && vrp.LastSeen <= thresholdTimestamp)
 }
 
 func countUnmatched(vrps VRPMap, others VRPMap, thresholdTimestamp int64) float64 {
@@ -665,7 +665,7 @@ func VRPArray(a VRPMap) []*VRPJsonSimple {
 	for _, vrp := range a {
 		result = append(result, vrp)
 	}
-	return result;
+	return result
 }
 
 type diffMetadata struct {
@@ -886,7 +886,7 @@ func main() {
 	lvl, _ := log.ParseLevel(*LogLevel)
 	log.SetLevel(lvl)
 
-	highestVisibilityThreshold := time.Second * time.Duration(visibilityThresholds[len(visibilityThresholds) - 1])
+	highestVisibilityThreshold := time.Second * time.Duration(visibilityThresholds[len(visibilityThresholds)-1])
 	if highestVisibilityThreshold > *GracePeriod {
 		log.Warnf("Highest visibility threshold %v greater than grace period %v, adjusting grace period", highestVisibilityThreshold, GracePeriod)
 		*GracePeriod = highestVisibilityThreshold
