@@ -423,23 +423,27 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 	return res, inGracePeriod
 }
 
-// Warning: mutates `currentVrps` and returns it
 func UpdateCurrentVrpMap(log *log.Entry, currentVrps VRPMap, now time.Time) (VRPMap, int) {
 	tCurrentUpdate := now.Unix()
 	gracePeriodEnds := tCurrentUpdate - int64(GracePeriod.Seconds())
 	inGracePeriod := 0
+	res := make(VRPMap)
 
 	for key, vrp := range currentVrps {
-		if vrp.Visible {
-			vrp.LastSeen = tCurrentUpdate
-		} else if vrp.LastSeen >= gracePeriodEnds {
-			inGracePeriod++
-		} else {
-			delete(currentVrps, key)
+		if !vrp.Visible && vrp.LastSeen < gracePeriodEnds {
+			continue;
 		}
+
+		updated := *vrp
+		if updated.Visible {
+			updated.LastSeen = tCurrentUpdate
+		} else {
+			inGracePeriod++
+		}
+		res[key] = &updated;
 	}
 
-	return currentVrps, inGracePeriod
+	return res, inGracePeriod
 }
 
 func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
