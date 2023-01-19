@@ -256,7 +256,7 @@ func (s *state) updateFromNewState() error {
 	sessid := s.server.GetSessionId()
 
 	vrpsjson := s.lastdata.Data
-	if (vrpsjson == nil) {
+	if vrpsjson == nil {
 		return nil
 	}
 
