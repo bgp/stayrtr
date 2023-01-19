@@ -1,7 +1,6 @@
 package prefixfile
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -17,8 +16,8 @@ type VRPJson struct {
 }
 
 type MetaData struct {
-	Counts        int    `json:"vrps"`
-	Buildtime     string `json:"buildtime,omitempty"`
+	Counts    int    `json:"vrps"`
+	Buildtime string `json:"buildtime,omitempty"`
 }
 
 type VRPList struct {

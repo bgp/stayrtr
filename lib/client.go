@@ -2,7 +2,6 @@ package rtrlib
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"

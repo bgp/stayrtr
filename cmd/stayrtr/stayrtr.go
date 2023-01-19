@@ -566,7 +566,7 @@ func run() error {
 	}
 
 	if *Bind == "" && *BindTLS == "" && *BindSSH == "" {
-		log.Fatalf("Specify at least a bind address")
+		log.Fatalf("Specify at least a bind address using -bind , -tls.bind , or -ssh.bind")
 	}
 
 	_, err := s.updateFile(*CacheBin)
@@ -639,7 +639,7 @@ func run() error {
 		}
 		private, err := ssh.ParsePrivateKey(sshkey)
 		if err != nil {
-			log.Fatal("Failed to parse private key: ", err)
+			log.Fatal("Failed to parse SSH private key: ", err)
 		}
 
 		sshConfig := ssh.ServerConfig{}
@@ -654,7 +654,7 @@ func run() error {
 				log.Infof("Connected (ssh-password): %v/%v", conn.User(), conn.RemoteAddr())
 				if conn.User() != *SSHAuthUser || !bytes.Equal(suppliedPassword, []byte(password)) {
 					log.Warnf("Wrong user or password for %v/%v. Disconnecting.", conn.User(), conn.RemoteAddr())
-					return nil, errors.New("Wrong user or password")
+					return nil, errors.New("wrong user or password")
 				}
 
 				return &ssh.Permissions{
@@ -693,7 +693,7 @@ func run() error {
 					}
 					if !noKeys {
 						log.Warnf("No key for %v/%v %v %v. Disconnecting.", conn.User(), conn.RemoteAddr(), key.Type(), keyBase64)
-						return nil, errors.New("Key not found")
+						return nil, errors.New("provided ssh key not found")
 					}
 				} else {
 					log.Infof("Connected (ssh-key): %v/%v with key %v %v", conn.User(), conn.RemoteAddr(), key.Type(), keyBase64)
