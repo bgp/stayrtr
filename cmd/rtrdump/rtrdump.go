@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"runtime"
 	"strings"
 
 	rtr "github.com/bgp/stayrtr/lib"
@@ -125,8 +124,6 @@ func (c *Client) ClientDisconnected(cs *rtr.ClientSession) {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	flag.Parse()
 	if flag.NArg() > 0 {
 		fmt.Printf("%s: illegal positional argument(s) provided (\"%s\") - did you mean to provide a flag?\n", os.Args[0], strings.Join(flag.Args(), " "))
