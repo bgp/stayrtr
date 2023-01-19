@@ -262,15 +262,13 @@ func (c *Client) Start(id int, ch chan int) {
 	}
 
 	connType := pathUrl.Scheme
-	rtrAddr := fmt.Sprintf("%s", pathUrl.Host)
+	rtrAddr := pathUrl.Host
 
 	bypass := true
 	for {
 
 		if !bypass {
-			select {
-			case <-time.After(c.RefreshInterval):
-			}
+			<-time.After(c.RefreshInterval)
 		}
 		bypass = false
 
@@ -324,10 +322,8 @@ func (c *Client) Start(id int, ch chan int) {
 				log.Fatal(err)
 			}
 
-			select {
-			case <-c.qrtr:
-				log.Infof("%d: Quitting RTR session", id)
-			}
+			<-c.qrtr
+			log.Infof("%d: Quitting RTR session", id)
 		} else {
 			log.Infof("%d: Fetching %s", c.id, c.Path)
 			data, statusCode, _, err := c.FetchConfig.FetchFile(c.Path)
