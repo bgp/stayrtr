@@ -209,10 +209,10 @@ func main() {
 	var f io.Writer
 	if *OutFile != "" {
 		ff, err := os.Create(*OutFile)
-		defer ff.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer ff.Close()
 		f = ff
 	} else {
 		f = os.Stdout
