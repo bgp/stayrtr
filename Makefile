@@ -27,6 +27,9 @@ OUTPUT_RTRMON := $(DIST_DIR)rtrmon$(SUFFIX)
 export CGO_ENABLED ?= 0
 
 
+.PHONY: build-all
+build-all: vet build-stayrtr build-rtrdump build-rtrmon
+
 .PHONY: vet
 vet:
 	go vet cmd/stayrtr/stayrtr.go
@@ -45,9 +48,6 @@ prepare:
 .PHONY: clean
 clean:
 	rm -rf $(DIST_DIR)
-
-.PHONY: build-all
-build-all: build-stayrtr build-rtrdump build-rtrmon
 
 .PHONY: build-stayrtr
 build-stayrtr: prepare
