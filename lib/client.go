@@ -220,6 +220,6 @@ func (c *ClientSession) Start(addr string, connType int, configTLS *tls.Config, 
 	case TYPE_SSH:
 		return c.StartSSH(addr, configSSH)
 	default:
-		return errors.New(fmt.Sprintf("Unknown type %v", connType))
+		return fmt.Errorf("unknown ClientSession type %v", connType)
 	}
 }
