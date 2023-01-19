@@ -3,13 +3,11 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"runtime"
 	"strings"
 
 	rtr "github.com/bgp/stayrtr/lib"
@@ -125,8 +123,6 @@ func (c *Client) ClientDisconnected(cs *rtr.ClientSession) {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	flag.Parse()
 	if flag.NArg() > 0 {
 		fmt.Printf("%s: illegal positional argument(s) provided (\"%s\") - did you mean to provide a flag?\n", os.Args[0], strings.Join(flag.Args(), " "))
@@ -167,7 +163,7 @@ func main() {
 			serverKeyHash := ssh.FingerprintSHA256(key)
 			if *ValidateSSH {
 				if serverKeyHash != fmt.Sprintf("SHA256:%v", *SSHServerKey) {
-					return errors.New(fmt.Sprintf("Server key hash %v is different than expected key hash SHA256:%v", serverKeyHash, *SSHServerKey))
+					return fmt.Errorf("server key hash %v is different than expected key hash SHA256:%v", serverKeyHash, *SSHServerKey)
 				}
 			}
 			log.Infof("Connected to server %v via ssh. Fingerprint: %v", remote.String(), serverKeyHash)
@@ -212,10 +208,10 @@ func main() {
 	var f io.Writer
 	if *OutFile != "" {
 		ff, err := os.Create(*OutFile)
-		defer ff.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer ff.Close()
 		f = ff
 	} else {
 		f = os.Stdout

@@ -850,7 +850,7 @@ func (r VRP) String() string {
 }
 
 func (r1 VRP) Equals(r2 VRP) bool {
-	return r1.MaxLen == r2.MaxLen && r1.ASN == r2.ASN && bytes.Equal(r1.Prefix.IP, r2.Prefix.IP) && bytes.Equal(r1.Prefix.Mask, r2.Prefix.Mask)
+	return r1.MaxLen == r2.MaxLen && r1.ASN == r2.ASN && r1.Prefix.IP.Equal(r2.Prefix.IP) && bytes.Equal(r1.Prefix.Mask, r2.Prefix.Mask)
 }
 
 func (r1 VRP) Copy() VRP {
