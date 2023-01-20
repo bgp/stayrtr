@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 EnvironmentFile=/etc/default/stayrtr
 WorkingDirectory=/usr/share/stayrtr
-ExecStart=/usr/local/bin/stayrtr $STAYRTR_ARGS
+ExecStart=/usr/bin/stayrtr $STAYRTR_ARGS
 
 [Install]
 WantedBy=multi-user.target
