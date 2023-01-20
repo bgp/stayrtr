@@ -42,7 +42,7 @@ nfpms:
     file_name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     vendor: stayrtr
     homepage: https://github.com/bgp/stayrtr
-    maintainer: Example <example@example.com>
+    maintainer: Current StayRTR Maintainer <stayrtr@benjojo.co.uk>
     description: Simple RPKI-To-Router server. (Hard fork of GoRTR)
     license: BSD-3-Clause
     section: utils
