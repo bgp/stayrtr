@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	rtr "github.com/bgp/stayrtr/lib"
 	"github.com/bgp/stayrtr/prefixfile"
@@ -13,12 +14,16 @@ import (
 
 func TestProcessData(t *testing.T) {
 	var stuff []prefixfile.VRPJson
+	NowUnix := int(time.Now().Unix())
+	ExpiredTime := 1337
+
 	stuff = append(stuff,
 		prefixfile.VRPJson{
-			Prefix: "192.168.0.0/24",
-			Length: 24,
-			ASN:    123,
-			TA:     "testrir",
+			Prefix:  "192.168.0.0/24",
+			Length:  24,
+			ASN:     123,
+			TA:      "testrir",
+			Expires: &NowUnix,
 		},
 		prefixfile.VRPJson{
 			Prefix: "192.168.0.0/24",
@@ -86,6 +91,14 @@ func TestProcessData(t *testing.T) {
 			ASN:    "ASN123",
 			TA:     "testrir",
 		},
+		// Invalid. Has expired
+		prefixfile.VRPJson{
+			Prefix:  "192.168.2.0/24",
+			Length:  24,
+			ASN:     124,
+			TA:      "testrir",
+			Expires: &ExpiredTime,
+		},
 	)
 	got, count, v4count, v6count := processData(stuff)
 	want := []rtr.VRP{
@@ -145,6 +158,9 @@ func TestJson(t *testing.T) {
 		t.Errorf("Unable to decode json: %v", err)
 	}
 
+	Ex1 := 1627568318
+	Ex2 := 1627575699
+
 	want := (&prefixfile.VRPList{
 		Metadata: prefixfile.MetaData{
 			Counts:    2,
@@ -155,14 +171,14 @@ func TestJson(t *testing.T) {
 				Length:  24,
 				ASN:     float64(13335),
 				TA:      "apnic",
-				Expires: 1627568318,
+				Expires: &Ex1,
 			},
 			{
 				Prefix:  "2001:200:136::/48",
 				Length:  48,
 				ASN:     "AS9367",
 				TA:      "apnic",
-				Expires: 1627575699,
+				Expires: &Ex2,
 			},
 		},
 	})

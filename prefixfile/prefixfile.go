@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type VRPJson struct {
@@ -12,12 +13,20 @@ type VRPJson struct {
 	Length  uint8       `json:"maxLength"`
 	ASN     interface{} `json:"asn"`
 	TA      string      `json:"ta,omitempty"`
-	Expires int         `json:"expires,omitempty"`
+	Expires *int        `json:"expires,omitempty"`
 }
 
 type MetaData struct {
 	Counts    int    `json:"vrps"`
 	Buildtime string `json:"buildtime,omitempty"`
+}
+
+func (md MetaData) GetBuildTime() time.Time {
+	bt, err := time.Parse(time.RFC3339, md.Buildtime)
+	if err != nil {
+		return time.Time{}
+	}
+	return bt
 }
 
 type VRPList struct {

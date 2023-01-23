@@ -344,6 +344,13 @@ func (s *Server) SetSerial(serial uint32) {
 	s.setSerial(serial)
 }
 
+func (s *Server) CountVRPs() int {
+	s.vrplock.RLock()
+	defer s.vrplock.RUnlock()
+
+	return len(s.vrpCurrent)
+}
+
 func (s *Server) AddVRPs(vrps []VRP) {
 	s.vrplock.RLock()
 

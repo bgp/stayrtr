@@ -200,6 +200,12 @@ func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 	filterDuplicates := make(map[string]bool)
 
+	// It may be tempting to change this to a simple time.Since() but that will
+	// grab the current time every time it's invoked, time calls can be slow on
+	// some platforms, so lets just get the unix time when we start and use that
+	// to compare it all
+	NowUnix := time.Now().UTC().Unix()
+
 	var vrplist []rtr.VRP
 	var countv4 int
 	var countv6 int
@@ -218,6 +224,14 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 
 		if !isValidPrefixLength(prefix, v.Length) {
 			continue
+		}
+
+		if v.Expires != nil {
+			// Prevent stale VRPs from being considered
+			// https://github.com/bgp/stayrtr/issues/15
+			if int(NowUnix) > int(*v.Expires) {
+				continue
+			}
 		}
 
 		if prefix.IP.To4() != nil {
@@ -251,6 +265,8 @@ func (e IdenticalFile) Error() string {
 	return fmt.Sprintf("File %s is identical to the previous version", e.File)
 }
 
+var errVRPJsonFileTooOld = errors.New("VRP JSON file is older than 24 hours")
+
 // Update the state based on the current slurm file and data.
 func (s *state) updateFromNewState() error {
 	sessid := s.server.GetSessionId()
@@ -260,14 +276,15 @@ func (s *state) updateFromNewState() error {
 		return nil
 	}
 
+	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.checktime {
-		buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 		if err != nil {
 			return err
 		}
 		notafter := buildtime.Add(time.Hour * 24)
 		if time.Now().UTC().After(notafter) {
-			return errors.New(fmt.Sprintf("VRP JSON file is older than 24 hours: %v", buildtime))
+			log.Warnf("VRP JSON file is older than 24 hours: %v", buildtime)
+			return errVRPJsonFileTooOld
 		}
 	}
 
@@ -281,7 +298,46 @@ func (s *state) updateFromNewState() error {
 	vrps, count, countv4, countv6 := processData(vrpsjson)
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
+	return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+}
 
+// Update the state based on the currently loaded files
+func (s *state) reloadFromCurrentState() error {
+	sessid := s.server.GetSessionId()
+
+	vrpsjson := s.lastdata.Data
+	if vrpsjson == nil {
+		return nil
+	}
+
+	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
+	if s.checktime {
+		if err != nil {
+			return err
+		}
+		notafter := buildtime.Add(time.Hour * 24)
+		if time.Now().UTC().After(notafter) {
+			log.Warnf("VRP JSON file is older than 24 hours: %v", buildtime)
+			return errVRPJsonFileTooOld
+		}
+	}
+
+	if s.slurm != nil {
+		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
+		asserted := s.slurm.AssertVRPs()
+		log.Infof("Slurm filtering: %v kept, %v removed, %v asserted", len(kept), len(removed), len(asserted))
+		vrpsjson = append(kept, asserted...)
+	}
+
+	vrps, count, countv4, countv6 := processData(vrpsjson)
+	if s.server.CountVRPs() != count {
+		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
+		return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+	}
+	return nil
+}
+
+func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson []prefixfile.VRPJson, countv4 int, countv6 int) error {
 	s.server.AddVRPs(vrps)
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
@@ -430,7 +486,20 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 		if cacheUpdated || slurmNotPresentOrUpdated {
 			err := s.updateFromNewState()
 			if err != nil {
+				if err == errVRPJsonFileTooOld {
+					// If the exiting build time is over 24 hours, It's time to drop everything out.
+					// to avoid routing on stale data
+					buildTime := s.exported.Metadata.GetBuildTime()
+					if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
+						s.server.AddVRPs([]rtr.VRP{}) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
+					}
+				}
 				log.Errorf("Error updating from new state: %v", err)
+			}
+		} else {
+			err := s.reloadFromCurrentState()
+			if err != nil {
+				log.Errorf("Error updating state: %v", err)
 			}
 		}
 	}
