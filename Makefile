@@ -94,3 +94,4 @@ package-rpm-stayrtr: prepare
 	package/stayrtr.env=/etc/default/stayrtr \
 	$(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
 	$(OUTPUT_RTRMON)=/usr/bin/rtrmon
+	mv *.rpm dist/ # It's unclear why we need to do this, but i assume it's a FPM bug.
