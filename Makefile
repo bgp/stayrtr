@@ -75,6 +75,8 @@ package-deb-stayrtr: prepare
         --architecture $(ARCH) \
         --license "$(LICENSE)" \
         --package $(DIST_DIR) \
+		--after-install package/after-install-debian.sh \
+		package/.keep=/usr/share/stayrtr/.keep \
         $(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
         package/stayrtr.service=/lib/systemd/system/stayrtr.service \
         package/stayrtr.env=/etc/default/stayrtr \
@@ -90,6 +92,7 @@ package-rpm-stayrtr: prepare
 	--license "$(LICENSE) "\
 	--package $(DIST_DIR) \
 	$(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
+	package/.keep=/usr/share/stayrtr/.keep \
 	package/stayrtr.service=/lib/systemd/system/stayrtr.service \
 	package/stayrtr.env=/etc/default/stayrtr \
 	$(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
