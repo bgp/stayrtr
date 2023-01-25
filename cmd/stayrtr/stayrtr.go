@@ -461,33 +461,47 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 			}
 		}
 		slurmNotPresentOrUpdated := false
-		if slurmFile != "" {
+
+		updateFileWG := sync.WaitGroup{}
+		updateFileWG.Add(2)
+		go func() {
+			defer updateFileWG.Done()
+			if slurmFile != "" {
+				var err error
+				slurmNotPresentOrUpdated, err = s.updateSlurm(slurmFile)
+				if err != nil {
+					switch err.(type) {
+					case utils.HttpNotModified:
+						log.Info(err)
+					case utils.IdenticalEtag:
+						log.Info(err)
+					default:
+						log.Errorf("Slurm: %v", err)
+					}
+				}
+			}
+		}()
+		var cacheUpdated bool
+
+		go func() {
+			defer updateFileWG.Done()
 			var err error
-			slurmNotPresentOrUpdated, err = s.updateSlurm(slurmFile)
+			cacheUpdated, err = s.updateFile(file)
 			if err != nil {
 				switch err.(type) {
 				case utils.HttpNotModified:
 					log.Info(err)
 				case utils.IdenticalEtag:
 					log.Info(err)
+				case IdenticalFile:
+					log.Info(err)
 				default:
-					log.Errorf("Slurm: %v", err)
+					log.Errorf("Error updating: %v", err)
 				}
 			}
-		}
-		cacheUpdated, err := s.updateFile(file)
-		if err != nil {
-			switch err.(type) {
-			case utils.HttpNotModified:
-				log.Info(err)
-			case utils.IdenticalEtag:
-				log.Info(err)
-			case IdenticalFile:
-				log.Info(err)
-			default:
-				log.Errorf("Error updating: %v", err)
-			}
-		}
+		}()
+
+		updateFileWG.Wait()
 
 		// Only process the first time after there is either a cache or SLURM
 		// update.
@@ -646,40 +660,51 @@ func run() error {
 		log.Fatalf("Specify at least a bind address using -bind , -tls.bind , or -ssh.bind")
 	}
 
-	_, err := s.updateFile(*CacheBin)
-	if err != nil {
-		switch err.(type) {
-		case utils.HttpNotModified:
-			log.Info(err)
-		case IdenticalFile:
-			log.Info(err)
-		case utils.IdenticalEtag:
-			log.Info(err)
-		default:
-			log.Errorf("Error updating: %v", err)
-		}
-	}
+	fileFetchWG := sync.WaitGroup{}
+	fileFetchWG.Add(2)
 
-	slurmFile := *Slurm
-	if slurmFile != "" {
-		_, err := s.updateSlurm(slurmFile)
+	go func() {
+		defer fileFetchWG.Done()
+		_, err := s.updateFile(*CacheBin)
 		if err != nil {
 			switch err.(type) {
 			case utils.HttpNotModified:
 				log.Info(err)
+			case IdenticalFile:
+				log.Info(err)
 			case utils.IdenticalEtag:
 				log.Info(err)
 			default:
-				log.Errorf("Slurm: %v", err)
+				log.Errorf("Error updating: %v", err)
 			}
 		}
-		if !*SlurmRefresh {
-			slurmFile = ""
+	}()
+
+	slurmFile := *Slurm
+	go func() {
+		defer fileFetchWG.Done()
+		if slurmFile != "" {
+			_, err := s.updateSlurm(slurmFile)
+			if err != nil {
+				switch err.(type) {
+				case utils.HttpNotModified:
+					log.Info(err)
+				case utils.IdenticalEtag:
+					log.Info(err)
+				default:
+					log.Errorf("Slurm: %v", err)
+				}
+			}
+			if !*SlurmRefresh {
+				slurmFile = ""
+			}
 		}
-	}
+	}()
+
+	fileFetchWG.Wait()
 
 	// Initial calculation of state (after fetching cache + slurm)
-	err = s.updateFromNewState()
+	err := s.updateFromNewState()
 	if err != nil {
 		log.Warnf("Error setting up initial state: %s", err)
 	}
