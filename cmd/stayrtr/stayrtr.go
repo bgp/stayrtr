@@ -438,20 +438,28 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	log.Debugf("Starting refresh routine (file: %v, interval: %vs, slurm: %v)", file, interval, slurmFile)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
+	delay := time.NewTicker(time.Duration(interval) * time.Second)
+	initialSyncNotComplete := false
 	for {
-		var delay *time.Timer
 		if s.lastchange.IsZero() {
 			log.Warn("Initial sync not complete. Refreshing every 30 seconds")
-			delay = time.NewTimer(time.Duration(30) * time.Second)
+			delay.Reset(30 * time.Second)
+			initialSyncNotComplete = true
 		} else {
-			delay = time.NewTimer(time.Duration(interval) * time.Second)
+			if initialSyncNotComplete {
+				delay.Reset(time.Duration(interval) * time.Second)
+			}
 		}
 		select {
 		case <-delay.C:
 		case <-signals:
 			log.Debug("Received HUP signal")
+			if s.lastchange.IsZero() {
+				delay.Reset(30 * time.Second)
+			} else {
+				delay.Reset(time.Duration(interval) * time.Second)
+			}
 		}
-		delay.Stop()
 		slurmNotPresentOrUpdated := false
 		if slurmFile != "" {
 			var err error
