@@ -339,7 +339,7 @@ Implementations on versions may vary.
 | RTRlib          | Yes       | No  | Yes | Only SSH key      |
 | Juniper         | Yes       | No  | No  |                   |
 | Cisco           | Yes       | No  | Yes | Only SSH password |
-| Alcatel         | Yes       | No  | No  |                   |
+| Nokia           | Yes       | No  | No  |                   |
 | Arista          | Yes       | No  | No  |                   |
 | FRRouting       | Yes       | No  | Yes | Only SSH key      |
 | Bird2           | Yes       | No  | Yes | Only SSH key      |
@@ -526,6 +526,139 @@ To visualize the accepted PDUs:
 show bgp rpki roa (ipv4|ipv6) [prefix]
 ```
 
+### Configure on Nokia SR OS
+
+Configure a session to the RTR server (assuming it runs on `192.168.1.100:8282`):
+
+```
+[ex:/configure router "Base" origin-validation]
+A:grhankin@br1-nyc# info
+    rpki-session 192.168.1.100 {
+        admin-state enable
+        port 8282
+    }
+```
+
+Add policies to validate or invalidate prefixes with an optional step of adding communities:
+
+```
+[ex:/configure policy-options]
+A:grhankin@er2-nyc# info
+    community "VRP_INVALID_COMM" {
+        member "ext:4300:2" { }
+    }
+    community "VRP_NOT_FOUND_COMM" {
+        member "ext:4300:1" { }
+    }
+    community "VRP_VALID_COMM" {
+        member "ext:4300:0" { }
+    }
+    policy-statement "ORIGIN_POLICY" {
+        entry 10 {
+            from {
+                origin-validation-state invalid
+            }
+            action {
+                action-type reject
+                community {
+                    add ["VRP_INVALID_COMM"]
+                }
+            }
+        }
+        entry 20 {
+            from {
+                origin-validation-state not-found
+            }
+            action {
+                action-type accept
+                local-preference 100
+                community {
+                   add ["VRP_NOT_FOUND_COMM"]
+                }
+            }
+        }
+        entry 30 {
+            from {
+                origin-validation-state valid
+            }
+            action {
+                action-type accept
+                local-preference 110
+                community {
+                    add ["VRP_VALID_COMM"]
+                }
+            }
+        }
+    }
+```
+Display status of the session to the RTR server:
+
+```
+[/]
+A:grhankin@br1-nyc# show router origin-validation rpki-session detail
+
+===============================================================================
+RPKI Session Information
+===============================================================================
+IP Address         : 192.168.1.100
+-------------------------------------------------------------------------------
+Port               : 8282               Oper State         : established
+Uptime             : 0d 15:27:54        Flaps              : 38
+Active IPv4 Records: 324319             Active IPv6 Records: 67880
+Admin State        : Up                 Local Address      : n/a
+Hold Time          : 600                Refresh Time       : 300
+Stale Route Time   : 3600               Connect Retry      : 120
+Serial ID          : 411                Session ID         : 15502
+===============================================================================
+No. of Sessions    : 1
+===============================================================================
+```
+
+Show content of the database:
+
+```
+[/]
+A:grhankin@br1-nyc# show router origin-validation database summary
+===============================================================================
+Static and Dynamic VRP Database Summary
+===============================================================================
+Source                                      IPv4 Entries      IPv6 Entries
+Description
+-------------------------------------------------------------------------------
+192.168.1.100 [B]                           324319            67880
+Static                                      0                 0
+===============================================================================
+```
+
+```
+[/]
+A:grhankin@br1-nyc# show router origin-validation database origin-as 38016
+===============================================================================
+Static and Dynamic VRP Database Entries
+===============================================================================
+Prefix Range [Flags]                                            Origin AS
+   Session IP [Flags]
+-------------------------------------------------------------------------------
+124.252.0.0/16-16 [Dynamic]                                     38016
+    192.168.1.100 [B]
+124.252.255.0/24-24 [Dynamic]                                   38016
+    192.168.1.100 [B]
+135.92.55.0/24-24 [Dynamic]                                     38016
+    192.168.1.100 [B]
+2406:c800::/32-32 [Dynamic]                                     38016
+    192.168.1.100 [B]
+2406:c800:a1ca::/48-48 [Dynamic]                                38016
+    192.168.1.100 [B]
+2406:c800:e000::/48-48 [Dynamic]                                38016
+    192.168.1.100 [B]
+-------------------------------------------------------------------------------
+No. of VRP Database Entries: 6
+-------------------------------------------------------------------------------
+Flags: B = Base instance session
+       M = Management instance session
+       Static-V = Static-Valid; Static-I = Static-Invalid
+===============================================================================
+```
 
 ## License
 
