@@ -16,9 +16,10 @@ This project is not affiliated with Cloudflare and any references to Cloudflare 
 
 _This software comes with no warranty._
 
-## In the field
+## Sponsors
 
-People probably use this!
+The StayRTR project was built on contributions of money and time.
+Special thanks for support to the Route Server Support Foundation [RSSF](https://www.rssf.nl) and [Internet Society](https://www.internetsociety.org/).
 
 ## Features of the server
 
