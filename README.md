@@ -2,9 +2,7 @@
 
 ![animated stayrtr logo](stayrtr.gif)
 
-StayRTR is an open-source implementation of RPKI to Router protocol (RFC 6810) based on GoRTR using the [the Go Programming Language](http://golang.org/). The maintainer of GoRTR got a new job, so we decided to hard fork.
-
-This project is not affiliated with Cloudflare and any references to Cloudflare are simply a function of forking. We do love the Cloudyflares though!
+StayRTR is an open-source implementation of RPKI-to-Router protocol (RFC 6810, RFC 8210) based on GoRTR using the [the Go Programming Language](http://golang.org/).
 
 * `/lib` contains a library to create your own server and client.
 * `/prefixfile` contains the structure of a JSON export file and signing capabilities.
@@ -24,11 +22,10 @@ Special thanks for support to the Route Server Support Foundation [RSSF](https:/
 ## Features of the server
 
 * Refreshes a JSON list of prefixes
+* Automatic expiration of outdated information (when using JSON produced by [rpki-client](https://www.rpki-client.org))
 * Prometheus metrics
-* Lightweight
 * TLS
 * SSH
-* Signature verification and expiration control
 
 ## Features of the extractor
 
@@ -322,8 +319,8 @@ Use your own validator, as long as the JSON source follows the following schema:
 ```
 
 * **Third-party JSON formatted VRP exports:**
+  * [console.rpki-client.org](https://console.rpki-client.org/vrps.json) (default, based on OpenBSD's `rpki-client`)
   * [NTT](https://rpki.gin.ntt.net/api/export.json) (based on OpenBSD's `rpki-client`)
-  * [console.rpki-client.org](https://console.rpki-client.org/vrps.json) (based on OpenBSD's `rpki-client`)
 
 By default, the session ID will be randomly generated. The serial will start at zero.
 
