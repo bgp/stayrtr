@@ -19,6 +19,7 @@ import (
 	"time"
 
 	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/ossec"
 	"github.com/bgp/stayrtr/prefixfile"
 	"github.com/bgp/stayrtr/utils"
 	"github.com/prometheus/client_golang/prometheus"
@@ -587,6 +588,12 @@ func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered i
 }
 
 func main() {
+	err := ossec.PledgePromises("dns inet rpath stdio tty")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "pledge failed: %v\n", err)
+		os.Exit(1)
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
