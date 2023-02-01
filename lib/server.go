@@ -78,6 +78,15 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request New Version", c)
 	}
+	server_SessionId := e.vrpManager.GetSessionId()
+	if sessionId != server_SessionId {
+		c.SendCorruptData()
+		if e.Log != nil {
+			e.Log.Debugf("%v < Invalid request (client asked for session %d but server is at %d)", c, sessionId, server_SessionId)
+		}
+		c.Disconnect()
+		return
+	}
 	serial, valid := e.vrpManager.GetCurrentSerial(sessionId)
 	if !valid {
 		c.SendNoDataError()
@@ -910,6 +919,14 @@ func (c *Client) SendNoDataError() {
 	pdu := &PDUErrorReport{
 		ErrorCode: PDU_ERROR_NODATA,
 		ErrorMsg:  "No data available",
+	}
+	c.SendPDU(pdu)
+}
+
+func (c *Client) SendCorruptData() {
+	pdu := &PDUErrorReport{
+		ErrorCode: PDU_ERROR_CORRUPTDATA,
+		ErrorMsg:  "Session ID mismatch: client is desynchronized",
 	}
 	c.SendPDU(pdu)
 }
