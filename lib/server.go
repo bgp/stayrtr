@@ -157,12 +157,7 @@ type ServerConfiguration struct {
 }
 
 func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler, simpleHandler RTREventHandler) *Server {
-	var sessid uint16
-	if configuration.SessId < 0 {
-		sessid = GenerateSessionId()
-	} else {
-		sessid = uint16(configuration.SessId)
-	}
+	sessid :=  GenerateSessionId()
 
 	refreshInterval := uint32(3600)
 	if configuration.RefreshInterval != 0 {

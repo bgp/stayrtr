@@ -51,7 +51,6 @@ var (
 	ExportPath = flag.String("export.path", "/rpki.json", "Export path")
 
 	RTRVersion = flag.Int("protocol", 1, "RTR protocol version")
-	SessionID  = flag.Int("rtr.sessionid", -1, "Set session ID (if < 0: will be randomized)")
 	RefreshRTR = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR   = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR  = flag.Int("rtr.expire", 7200, "Expire interval")
@@ -613,7 +612,6 @@ func run() error {
 
 	sc := rtr.ServerConfiguration{
 		ProtocolVersion: protoverToLib[*RTRVersion],
-		SessId:          *SessionID,
 		KeepDifference:  3,
 		Log:             log.StandardLogger(),
 		LogVerbose:      *LogVerbose,
