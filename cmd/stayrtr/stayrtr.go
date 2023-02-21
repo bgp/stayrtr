@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -99,6 +100,13 @@ var (
 		},
 		[]string{"ip_version", "filtered", "path"},
 	)
+	NumberOfBSKs = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "rpki_bgpsec",
+			Help: "Number of BGPsec keys.",
+		},
+		[]string{},
+	)
 	LastRefresh = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_refresh",
@@ -153,6 +161,7 @@ var (
 
 func initMetrics() {
 	prometheus.MustRegister(NumberOfVRPs)
+	prometheus.MustRegister(NumberOfBSKs)
 	prometheus.MustRegister(LastChange)
 	prometheus.MustRegister(LastRefresh)
 	prometheus.MustRegister(RefreshStatusCode)
@@ -197,7 +206,7 @@ func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 // 2 - The ASN is a valid ASN
 // 3 - The MaxLength is valid
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, and IPv6 VRPs
-func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
+func processData(vrplistjson []prefixfile.VRPJson, bsklistjson []prefixfile.BgpSecKeyJson) ([]rtr.VRP, []rtr.BgpsecKey, int, int, int) {
 	filterDuplicates := make(map[string]bool)
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -207,6 +216,7 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 	NowUnix := time.Now().UTC().Unix()
 
 	var vrplist []rtr.VRP
+	var bsklist = make([]rtr.BgpsecKey, 0)
 	var countv4 int
 	var countv6 int
 
@@ -254,7 +264,29 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 		}
 		vrplist = append(vrplist, vrp)
 	}
-	return vrplist, countv4 + countv6, countv4, countv6
+
+	for _, v := range bsklistjson {
+		if v.Expires != nil {
+			// Prevent stale VRPs from being considered
+			// https://github.com/bgp/stayrtr/issues/15
+			if int(NowUnix) > int(*v.Expires) {
+				continue
+			}
+		}
+
+		SKIBytes, err := hex.DecodeString(v.Ski)
+		if err != nil {
+			continue
+		}
+
+		bsklist = append(bsklist, rtr.BgpsecKey{
+			ASN:    v.Asn,
+			Pubkey: v.Pubkey,
+			Ski:    SKIBytes,
+		})
+	}
+
+	return vrplist, bsklist, countv4 + countv6, countv4, countv6
 }
 
 type IdenticalFile struct {
@@ -295,10 +327,10 @@ func (s *state) updateFromNewState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, count, countv4, countv6 := processData(vrpsjson)
+	vrps, bsks, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys)
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
-	return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+	return s.applyUpdateFromNewState(vrps, bsks, sessid, vrpsjson, s.lastdata.BgpSecKeys, countv4, countv6)
 }
 
 // Update the state based on the currently loaded files
@@ -329,16 +361,26 @@ func (s *state) reloadFromCurrentState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, count, countv4, countv6 := processData(vrpsjson)
+	vrps, bsks, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys)
 	if s.server.CountVRPs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
-		return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, bsks, sessid, vrpsjson, s.lastdata.BgpSecKeys, countv4, countv6)
 	}
 	return nil
 }
 
-func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson []prefixfile.VRPJson, countv4 int, countv6 int) error {
-	s.server.AddData(vrps)
+func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, bsks []rtr.BgpsecKey, sessid uint16,
+	vrpsjson []prefixfile.VRPJson, bsksjson []prefixfile.BgpSecKeyJson,
+	countv4 int, countv6 int) error {
+
+	SDs := make([]rtr.SendableData, 0)
+	for _, v := range vrps {
+		SDs = append(SDs, v.Copy())
+	}
+	for _, v := range bsks {
+		SDs = append(SDs, v.Copy())
+	}
+	s.server.AddData(SDs)
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
 	log.Infof("Updated added, new serial %v", serial)
@@ -353,7 +395,8 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson 
 			Counts:    len(vrpsjson),
 			Buildtime: s.lastdata.Metadata.Buildtime,
 		},
-		Data: vrpsjson,
+		Data:       vrpsjson,
+		BgpSecKeys: bsksjson,
 	}
 
 	s.lockJson.Unlock()
@@ -368,7 +411,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson 
 				countv6_dup++
 			}
 		}
-		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin)
+		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin, len(bsks))
 	}
 
 	return nil
@@ -513,7 +556,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 					// to avoid routing on stale data
 					buildTime := s.exported.Metadata.GetBuildTime()
 					if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
-						s.server.AddData([]rtr.VRP{}) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
+						s.server.AddData([]rtr.SendableData{}) // empty the store of sendable stuff, triggering a emptying of the RTR server
 					}
 				}
 				log.Errorf("Error updating from new state: %v", err)
@@ -578,11 +621,12 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 				"_", -1))).Inc()
 }
 
-func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string) {
+func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, bskCount int) {
 	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
 	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
 	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
 	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
+	NumberOfBSKs.WithLabelValues().Set(float64(bskCount))
 	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 

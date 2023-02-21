@@ -3,6 +3,7 @@ package rtrlib
 import (
 	"bytes"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -79,7 +80,7 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendVRPs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, vrps)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
 			}
@@ -114,7 +115,7 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendVRPs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, vrps)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
@@ -364,7 +365,7 @@ func (s *Server) CountVRPs() int {
 	return len(s.sdCurrent)
 }
 
-func (s *Server) AddData(vrps []VRP) {
+func (s *Server) AddData(vrps []SendableData) {
 	s.sdlock.RLock()
 
 	// a slight hack for now, until we have BGPsec/ASPA support
@@ -533,6 +534,8 @@ func (s *Server) Start(bind string) error {
 	return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 }
 
+var DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	client := ClientFromConn(tcpconn, s, s)
 	client.log = s.log
@@ -540,6 +543,9 @@ func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 		client.SetVersion(s.baseVersion)
 	}
 	client.SetIntervals(s.pduRefreshInterval, s.pduRetryInterval, s.pduExpireInterval)
+	if *DisableBGPSec {
+		client.DisableBGPsec()
+	}
 	go client.Start()
 	return nil
 }
@@ -725,6 +731,8 @@ type Client struct {
 	retryInterval   uint32
 	expireInterval  uint32
 
+	dontSendBGPsecKeys bool
+
 	log Logger
 }
 
@@ -742,6 +750,10 @@ func (c *Client) GetLocalAddress() net.Addr {
 
 func (c *Client) GetVersion() uint8 {
 	return c.version
+}
+
+func (c *Client) DisableBGPsec() {
+	c.dontSendBGPsecKeys = true
 }
 
 func (c *Client) SetIntervals(refreshInterval uint32, retryInterval uint32, expireInterval uint32) {
@@ -905,14 +917,62 @@ func (r1 *VRP) Copy() SendableData {
 }
 
 func (r1 *VRP) SetFlag(f uint8) {
-	r1.Flags = f // TODO convert everything to *VRP
+	r1.Flags = f
 }
 
 func (r1 *VRP) GetFlag() uint8 {
 	return r1.Flags
 }
 
-func (c *Client) SendVRPs(sessionId uint16, serialNumber uint32, data []SendableData) {
+type BgpsecKey struct {
+	ASN    uint32
+	Pubkey []byte
+	Ski    []byte
+	Flags  uint8
+}
+
+func (bsk *BgpsecKey) Type() string {
+	return "BGPsecKey"
+}
+
+func (bsk *BgpsecKey) String() string {
+	return fmt.Sprintf("BGPsec AS%v -> %x, Flags: %v", bsk.ASN, bsk.Ski, bsk.Flags)
+}
+
+func (bsk *BgpsecKey) HashKey() string {
+	return fmt.Sprintf("%v-%x-%x", bsk.ASN, bsk.Ski, bsk.Pubkey)
+}
+
+func (r1 *BgpsecKey) Equals(r2 SendableData) bool {
+	if r1.Type() != r2.Type() {
+		return false
+	}
+
+	r2True := r2.(*BgpsecKey)
+	return r1.ASN == r2True.ASN && bytes.Equal(r1.Pubkey, r2True.Pubkey) && bytes.Equal(r1.Ski, r2True.Ski)
+}
+
+func (bsk *BgpsecKey) Copy() SendableData {
+	cop := BgpsecKey{
+		ASN:    bsk.ASN,
+		Pubkey: make([]byte, len(bsk.Pubkey)),
+		Ski:    make([]byte, len(bsk.Ski)),
+		Flags:  bsk.Flags,
+	}
+	copy(cop.Pubkey, bsk.Pubkey)
+	copy(cop.Ski, bsk.Ski)
+	return &cop
+}
+
+func (bsk *BgpsecKey) SetFlag(f uint8) {
+	bsk.Flags = f
+}
+
+func (bsk *BgpsecKey) GetFlag() uint8 {
+	return bsk.Flags
+}
+
+func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
@@ -989,6 +1049,19 @@ func (c *Client) SendData(sd SendableData) {
 			}
 			c.SendPDU(pdu)
 		}
+	case *BgpsecKey:
+		if c.version == 0 || c.dontSendBGPsecKeys {
+			return
+		}
+
+		pdu := &PDURouterKey{
+			Version:              c.version, // The RouterKey PDU is unchanged from rfc8210 to draft-ietf-sidrops-8210bis-10
+			Flags:                t.Flags,
+			SubjectKeyIdentifier: t.Ski,
+			ASN:                  t.ASN,
+			SubjectPublicKeyInfo: t.Pubkey,
+		}
+		c.SendPDU(pdu)
 	}
 }
 

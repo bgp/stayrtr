@@ -197,10 +197,10 @@ func TestApplyDiff(t *testing.T) {
 	}
 	diffSD, prevVrpsAsSD := make([]SendableData, 0), make([]SendableData, 0)
 	for _, v := range diff {
-		diffSD = append(diffSD, &v)
+		diffSD = append(diffSD, v.Copy())
 	}
 	for _, v := range prevVrps {
-		prevVrpsAsSD = append(prevVrpsAsSD, &v)
+		prevVrpsAsSD = append(prevVrpsAsSD, v.Copy())
 	}
 
 	vrps := ApplyDiff(diffSD, prevVrpsAsSD)
@@ -218,4 +218,47 @@ func TestApplyDiff(t *testing.T) {
 	assert.Equal(t, vrps[4].(*VRP).GetFlag(), uint8(FLAG_REMOVED))
 	assert.Equal(t, vrps[5].(*VRP).ASN, uint32(65007))
 	assert.Equal(t, vrps[5].(*VRP).GetFlag(), uint8(FLAG_ADDED))
+}
+
+func TestComputeDiffBGPSEC(t *testing.T) {
+	newVrps := []BgpsecKey{
+		{
+			ASN:    65003,
+			Pubkey: []byte("hurr"),
+			Ski:    []byte("durr"),
+		},
+		{
+			Pubkey: []byte("abc"),
+			Ski:    []byte("dce"),
+			ASN:    65002,
+		},
+	}
+	prevVrps := []BgpsecKey{
+		{
+			Pubkey: []byte("murr"),
+			Ski:    []byte("durr"),
+			ASN:    65001,
+		},
+		{
+			Pubkey: []byte("abc"),
+			Ski:    []byte("dce"),
+			ASN:    65002,
+		},
+	}
+
+	newVrpsSD, prevVrpsAsSD := make([]SendableData, 0), make([]SendableData, 0)
+	for _, v := range newVrps {
+		newVrpsSD = append(newVrpsSD, v.Copy())
+	}
+	for _, v := range prevVrps {
+		prevVrpsAsSD = append(prevVrpsAsSD, v.Copy())
+	}
+
+	added, removed, unchanged := ComputeDiff(newVrpsSD, prevVrpsAsSD)
+	assert.Len(t, added, 1)
+	assert.Len(t, removed, 1)
+	assert.Len(t, unchanged, 1)
+	assert.Equal(t, added[0].(*BgpsecKey).ASN, uint32(65003))
+	assert.Equal(t, removed[0].(*BgpsecKey).ASN, uint32(65001))
+	assert.Equal(t, unchanged[0].(*BgpsecKey).ASN, uint32(65002))
 }

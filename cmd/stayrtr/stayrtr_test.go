@@ -100,7 +100,7 @@ func TestProcessData(t *testing.T) {
 			Expires: &ExpiredTime,
 		},
 	)
-	got, count, v4count, v6count := processData(stuff)
+	got, _, count, v4count, v6count := processData(stuff, nil)
 	want := []rtr.VRP{
 		{
 			Prefix: mustParseIPNet("192.168.0.0/24"),
