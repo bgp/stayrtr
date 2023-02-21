@@ -147,16 +147,6 @@ var (
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
 	}
-	authToId = map[string]int{
-		"none":     METHOD_NONE,
-		"password": METHOD_PASSWORD,
-		//"key":   METHOD_KEY,
-	}
-	serialToId = map[string]int{
-		"disable": USE_SERIAL_DISABLE,
-		"startup": USE_SERIAL_START,
-		"full":    USE_SERIAL_FULL,
-	}
 )
 
 func initMetrics() {
@@ -584,7 +574,6 @@ type state struct {
 	lastchange time.Time
 	lastts     time.Time
 	sendNotifs bool
-	useSerial  int
 
 	fetchConfig *utils.FetchConfig
 

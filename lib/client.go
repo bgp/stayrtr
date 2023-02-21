@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -83,16 +82,7 @@ func (c *ClientSession) sendLoop() {
 				c.wr.Write(pdu.Bytes())
 			}
 		case <-c.quit:
-			break
-		}
-	}
-}
-
-func (c *ClientSession) refreshLoop() {
-	for c.connected {
-		select {
-		case <-time.After(20 * time.Second):
-			// send refresh
+			return
 		}
 	}
 }
