@@ -21,16 +21,12 @@ type ClientSession struct {
 	version uint8
 
 	connected bool
+	tcpconn   net.Conn
+	rd        io.Reader
+	wr        io.Writer
 
-	curserial uint32
 	transmits chan PDU
 	quit      chan bool
-
-	tcpconn    net.Conn
-	sshsession *ssh.Session
-
-	rd io.Reader
-	wr io.Writer
 
 	handler RTRClientSessionEventHandler
 
