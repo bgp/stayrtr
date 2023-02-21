@@ -370,7 +370,7 @@ func (s *Server) AddData(vrps []VRP) {
 	// a slight hack for now, until we have BGPsec/ASPA support
 	vrpsAsSD := make([]SendableData, 0)
 	for _, v := range vrps {
-		vrpsAsSD = append(vrpsAsSD, v)
+		vrpsAsSD = append(vrpsAsSD, v.Copy())
 	}
 
 	added, removed, unchanged := ComputeDiff(vrpsAsSD, s.sdCurrent)
@@ -869,46 +869,46 @@ type VRP struct {
 	Flags  uint8
 }
 
-func (r VRP) Type() string {
+func (r *VRP) Type() string {
 	return "VRP"
 }
 
-func (r VRP) String() string {
+func (r *VRP) String() string {
 	return fmt.Sprintf("VRP %v -> /%v, AS%v, Flags: %v", r.Prefix.String(), r.MaxLen, r.ASN, r.Flags)
 }
 
-func (vrp VRP) HashKey() string {
+func (vrp *VRP) HashKey() string {
 	return fmt.Sprintf("%v-%v-%v", vrp.Prefix.String(), vrp.MaxLen, vrp.ASN)
 }
 
-func (r1 VRP) Equals(r2 SendableData) bool {
+func (r1 *VRP) Equals(r2 SendableData) bool {
 	if r1.Type() != r2.Type() {
 		return false
 	}
 
-	r2True := r2.(VRP)
+	r2True := r2.(*VRP)
 	return r1.MaxLen == r2True.MaxLen && r1.ASN == r2True.ASN && r1.Prefix.IP.Equal(r2True.Prefix.IP) && bytes.Equal(r1.Prefix.Mask, r2True.Prefix.Mask)
 }
 
-func (r1 VRP) Copy() SendableData {
+func (r1 *VRP) Copy() SendableData {
 	newprefix := net.IPNet{
 		IP:   make([]byte, len(r1.Prefix.IP)),
 		Mask: make([]byte, len(r1.Prefix.Mask)),
 	}
 	copy(newprefix.IP, r1.Prefix.IP)
 	copy(newprefix.Mask, r1.Prefix.Mask)
-	return VRP{
+	return &VRP{
 		Prefix: newprefix,
 		ASN:    r1.ASN,
 		MaxLen: r1.MaxLen,
 		Flags:  r1.Flags}
 }
 
-func (r1 VRP) SetFlag(f uint8) {
+func (r1 *VRP) SetFlag(f uint8) {
 	r1.Flags = f // TODO convert everything to *VRP
 }
 
-func (r1 VRP) GetFlag() uint8 {
+func (r1 *VRP) GetFlag() uint8 {
 	return r1.Flags
 }
 
@@ -918,7 +918,7 @@ func (c *Client) SendVRPs(sessionId uint16, serialNumber uint32, data []Sendable
 	}
 	c.SendPDU(pduBegin)
 	for _, data := range data {
-		c.SendData(data)
+		c.SendData(data.Copy())
 	}
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
@@ -971,7 +971,7 @@ func (c *Client) SendWrongVersionError() {
 // Converts a SendableData to a PDU and sends it to the client
 func (c *Client) SendData(sd SendableData) {
 	switch t := sd.(type) {
-	case VRP:
+	case *VRP:
 		if t.Prefix.IP.To4() == nil && t.Prefix.IP.To16() != nil {
 			pdu := &PDUIPv6Prefix{
 				Flags:  t.Flags,
