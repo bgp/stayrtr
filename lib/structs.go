@@ -417,9 +417,9 @@ func (pdu *PDUCacheReset) Write(wr io.Writer) {
 type PDURouterKey struct {
 	Version              uint8
 	Flags                uint8
-	SubjectKeyIdentifier [20]byte
+	SubjectKeyIdentifier []byte
 	ASN                  uint32
-	SubjectPublicKeyInfo uint32
+	SubjectPublicKeyInfo []byte
 }
 
 func (pdu *PDURouterKey) String() string {
@@ -449,10 +449,10 @@ func (pdu *PDURouterKey) Write(wr io.Writer) {
 	binary.Write(wr, binary.BigEndian, uint8(PDU_ID_ROUTER_KEY))
 	binary.Write(wr, binary.BigEndian, uint8(pdu.Flags))
 	binary.Write(wr, binary.BigEndian, uint8(0))
-	binary.Write(wr, binary.BigEndian, uint32(36))
+	binary.Write(wr, binary.BigEndian, uint32(32+len(pdu.SubjectPublicKeyInfo)))
 	binary.Write(wr, binary.BigEndian, pdu.SubjectKeyIdentifier)
 	binary.Write(wr, binary.BigEndian, pdu.ASN)
-	binary.Write(wr, binary.BigEndian, pdu.SubjectPublicKeyInfo)
+	wr.Write(pdu.SubjectPublicKeyInfo)
 }
 
 type PDUErrorReport struct {
@@ -657,14 +657,14 @@ func Decode(rdr io.Reader) (PDU, error) {
 			return nil, fmt.Errorf("wrong length for Router Key PDU: %d < 8", len(toread))
 		}
 		asn := binary.BigEndian.Uint32(toread[20:24])
-		spki := binary.BigEndian.Uint32(toread[24:28])
-		ski := [20]byte{}
+		// spki := binary.BigEndian.Uint32(toread[24:28]) // TODO
+		ski := make([]byte, 20)
 		copy(ski[:], toread[0:20])
 		return &PDURouterKey{
 			Version:              pver,
 			SubjectKeyIdentifier: ski,
 			ASN:                  asn,
-			SubjectPublicKeyInfo: spki,
+			// SubjectPublicKeyInfo: spki, // TODO
 		}, nil
 	case PDU_ID_ERROR_REPORT:
 		if len(toread) < 8 {

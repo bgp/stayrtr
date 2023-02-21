@@ -35,7 +35,9 @@ type VRPManager interface {
 	GetCurrentSerial(uint16) (uint32, bool)
 	GetSessionId() uint16
 	GetCurrentVRPs() ([]VRP, bool)
+	GetCurrentKeys() ([]BgpSecKey, bool)
 	GetVRPsSerialDiff(uint32) ([]VRP, bool)
+	GetKeysSerialDiff(uint32) ([]BgpSecKey, bool)
 }
 
 type DefaultRTREventHandler struct {
@@ -60,13 +62,14 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 		}
 	} else {
 		vrps, exists := e.vrpManager.GetCurrentVRPs()
+		keys, _ := e.vrpManager.GetCurrentKeys()
 		if !exists {
 			c.SendInternalError()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendVRPs(sessionId, serial, vrps)
+			c.SendClientData(sessionId, serial, vrps, keys)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
 			}
@@ -95,13 +98,14 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 		}
 	} else {
 		vrps, exists := e.vrpManager.GetVRPsSerialDiff(serialNumber)
+		keys, _ := e.vrpManager.GetKeysSerialDiff(serialNumber)
 		if !exists {
 			c.SendCacheReset()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendVRPs(sessionId, serial, vrps)
+			c.SendClientData(sessionId, serial, vrps, keys)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
@@ -129,8 +133,13 @@ type Server struct {
 	vrpListSerial    []uint32
 	vrpCurrent       []VRP
 	vrpCurrentSerial uint32
-	keepDiff         int
-	manualserial     bool
+	bgpSecListDiff   [][]BgpSecKey
+	bgpSecMapSerial  map[uint32]int
+	bgpSecListSerial []uint32
+	bgpSecCurrent    []BgpSecKey
+
+	keepDiff     int
+	manualserial bool
 
 	pduRefreshInterval uint32
 	pduRetryInterval   uint32
@@ -157,7 +166,7 @@ type ServerConfiguration struct {
 }
 
 func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler, simpleHandler RTREventHandler) *Server {
-	sessid :=  GenerateSessionId()
+	sessid := GenerateSessionId()
 
 	refreshInterval := uint32(3600)
 	if configuration.RefreshInterval != 0 {
@@ -179,6 +188,11 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 		vrpListSerial: make([]uint32, 0),
 		vrpCurrent:    make([]VRP, 0),
 		keepDiff:      configuration.KeepDifference,
+
+		bgpSecListDiff:   make([][]BgpSecKey, 0),
+		bgpSecMapSerial:  make(map[uint32]int),
+		bgpSecListSerial: make([]uint32, 0),
+		bgpSecCurrent:    make([]BgpSecKey, 0),
 
 		clientlock:     &sync.RWMutex{},
 		clients:        make([]*Client, 0),
@@ -210,10 +224,10 @@ func ConvertVRPListToMap(vrps []VRP) map[string]VRP {
 	return vrpMap
 }
 
-func ComputeDiff(newVrps []VRP, prevVrps []VRP) ([]VRP, []VRP, []VRP) {
-	added := make([]VRP, 0)
-	removed := make([]VRP, 0)
-	unchanged := make([]VRP, 0)
+func ComputeVRPDiff(newVrps []VRP, prevVrps []VRP) (added, removed, unchanged []VRP) {
+	added = make([]VRP, 0)
+	removed = make([]VRP, 0)
+	unchanged = make([]VRP, 0)
 
 	newVrpsMap := ConvertVRPListToMap(newVrps)
 	prevVrpsMap := ConvertVRPListToMap(prevVrps)
@@ -241,7 +255,7 @@ func ComputeDiff(newVrps []VRP, prevVrps []VRP) ([]VRP, []VRP, []VRP) {
 	return added, removed, unchanged
 }
 
-func ApplyDiff(diff []VRP, prevVrps []VRP) []VRP {
+func ApplyVRPDiff(diff []VRP, prevVrps []VRP) []VRP {
 	newvrps := make([]VRP, 0)
 	diffMap := ConvertVRPListToMap(diff)
 	prevVrpsMap := ConvertVRPListToMap(prevVrps)
@@ -274,6 +288,78 @@ func ApplyDiff(diff []VRP, prevVrps []VRP) []VRP {
 	return newvrps
 }
 
+func ConvertBGPSecKeyListToMap(keys []BgpSecKey) map[string]BgpSecKey {
+	keyMap := make(map[string]BgpSecKey, len(keys))
+	for _, v := range keys {
+		keyMap[v.HashKey()] = v
+	}
+	return keyMap
+}
+
+func ComputeBGPSecKeyDiff(newKeys, preKeys []BgpSecKey) (added, removed, unchanged []BgpSecKey) {
+	added = make([]BgpSecKey, 0)
+	removed = make([]BgpSecKey, 0)
+	unchanged = make([]BgpSecKey, 0)
+
+	newKeysMap := ConvertBGPSecKeyListToMap(newKeys)
+	prevKeysMap := ConvertBGPSecKeyListToMap(preKeys)
+
+	for _, vrp := range newKeys {
+		_, exists := prevKeysMap[vrp.HashKey()]
+		if !exists {
+			rcopy := vrp.Copy()
+			rcopy.Flags = 1
+			added = append(added, rcopy)
+		}
+	}
+	for _, vrp := range preKeys {
+		_, exists := newKeysMap[vrp.HashKey()]
+		if !exists {
+			rcopy := vrp.Copy()
+			rcopy.Flags = 0
+			removed = append(removed, rcopy)
+		} else {
+			rcopy := vrp.Copy()
+			unchanged = append(unchanged, rcopy)
+		}
+	}
+
+	return added, removed, unchanged
+}
+
+func ApplyBGPSecKeyDiff(diff, prevKeys []BgpSecKey) []BgpSecKey {
+	newkeys := make([]BgpSecKey, 0)
+	diffMap := ConvertBGPSecKeyListToMap(diff)
+	prevkeysMap := ConvertBGPSecKeyListToMap(prevKeys)
+
+	for _, key := range prevKeys {
+		_, exists := diffMap[key.HashKey()]
+		if !exists {
+			rcopy := key.Copy()
+			newkeys = append(newkeys, rcopy)
+		}
+	}
+	for _, key := range diff {
+		if key.Flags == FLAG_ADDED {
+			rcopy := key.Copy()
+			newkeys = append(newkeys, rcopy)
+		} else if key.Flags == FLAG_REMOVED {
+			cvrp, exists := prevkeysMap[key.HashKey()]
+			if !exists {
+				rcopy := key.Copy()
+				newkeys = append(newkeys, rcopy)
+			} else {
+				if cvrp.Flags == FLAG_REMOVED {
+					rcopy := key.Copy()
+					newkeys = append(newkeys, rcopy)
+				}
+			}
+		}
+
+	}
+	return newkeys
+}
+
 func (s *Server) SetManualSerial(v bool) {
 	s.manualserial = v
 }
@@ -287,6 +373,13 @@ func (s *Server) GetCurrentVRPs() ([]VRP, bool) {
 	vrp := s.vrpCurrent
 	s.vrplock.RUnlock()
 	return vrp, true
+}
+
+func (s *Server) GetCurrentKeys() ([]BgpSecKey, bool) {
+	s.vrplock.RLock()
+	keys := s.bgpSecCurrent
+	s.vrplock.RUnlock()
+	return keys, true
 }
 
 func (s *Server) GetVRPsSerialDiff(serial uint32) ([]VRP, bool) {
@@ -307,6 +400,19 @@ func (s *Server) getVRPsSerialDiff(serial uint32) ([]VRP, bool) {
 		vrp = s.vrpListDiff[index]
 	}
 	return vrp, ok
+}
+
+func (s *Server) GetKeysSerialDiff(serial uint32) ([]BgpSecKey, bool) {
+	if serial == s.vrpCurrentSerial {
+		return []BgpSecKey{}, true
+	}
+
+	keys := make([]BgpSecKey, 0)
+	index, ok := s.bgpSecMapSerial[serial]
+	if ok {
+		keys = s.bgpSecListDiff[index]
+	}
+	return keys, ok
 }
 
 func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
@@ -355,21 +461,29 @@ func (s *Server) CountVRPs() int {
 	return len(s.vrpCurrent)
 }
 
-func (s *Server) AddVRPs(vrps []VRP) {
+func (s *Server) AddVRPsAndKeys(vrps []VRP, keys []BgpSecKey) {
 	s.vrplock.RLock()
-
 	vrpCurrent := s.vrpCurrent
+	keyCurrent := s.bgpSecCurrent
 
-	added, removed, unchanged := ComputeDiff(vrps, vrpCurrent)
+	addedVRP, removedVRP, unchangedVRP := ComputeVRPDiff(vrps, vrpCurrent)
 	if s.log != nil && s.logverbose {
-		s.log.Debugf("Computed diff: added (%v), removed (%v), unchanged (%v)", added, removed, unchanged)
+		s.log.Debugf("Computed VRP diff: added (%v), removed (%v), unchanged (%v)", addedVRP, removedVRP, unchangedVRP)
 	} else if s.log != nil {
-		s.log.Debugf("Computed diff: added (%d), removed (%d), unchanged (%d)", len(added), len(removed), len(unchanged))
+		s.log.Debugf("Computed VRP diff: added (%d), removed (%d), unchanged (%d)", len(addedVRP), len(removedVRP), len(unchangedVRP))
 	}
-	curDiff := append(added, removed...)
+	curVRPDiff := append(addedVRP, removedVRP...)
+
+	addedKeys, removedKeys, unchangedKeys := ComputeBGPSecKeyDiff(keys, keyCurrent)
+	if s.log != nil && s.logverbose {
+		s.log.Debugf("Computed BGPsec diff: added (%v), removed (%v), unchanged (%v)", addedKeys, removedKeys, unchangedKeys)
+	} else if s.log != nil {
+		s.log.Debugf("Computed BGPsec diff: added (%d), removed (%d), unchanged (%d)", len(addedKeys), len(removedKeys), len(unchangedKeys))
+	}
+	curKeyDiff := append(addedKeys, removedKeys...)
 	s.vrplock.RUnlock()
 
-	s.AddVRPsDiff(curDiff)
+	s.AddDataDiff(curVRPDiff, curKeyDiff)
 }
 
 func (s *Server) addSerial(serial uint32) []uint32 {
@@ -383,27 +497,36 @@ func (s *Server) addSerial(serial uint32) []uint32 {
 	return removed
 }
 
-func (s *Server) AddVRPsDiff(diff []VRP) {
+func (s *Server) AddDataDiff(diffVRP []VRP, diffKeys []BgpSecKey) {
+	// Only do a write lock while we read some basic data and make
+	// diffs.
 	s.vrplock.RLock()
-	nextDiff := make([][]VRP, len(s.vrpListDiff))
+	nextVRPDiff := make([][]VRP, len(s.vrpListDiff))
+	nextKeysDiff := make([][]BgpSecKey, len(s.bgpSecListDiff))
 	for i, prevVrps := range s.vrpListDiff {
-		nextDiff[i] = ApplyDiff(diff, prevVrps)
+		nextVRPDiff[i] = ApplyVRPDiff(diffVRP, prevVrps)
 	}
-	newVrpCurrent := ApplyDiff(diff, s.vrpCurrent)
+	for i, prevKeys := range s.bgpSecListDiff {
+		nextKeysDiff[i] = ApplyBGPSecKeyDiff(diffKeys, prevKeys)
+	}
+	newVrpCurrent := ApplyVRPDiff(diffVRP, s.vrpCurrent)
+	newBgpSecCurrent := ApplyBGPSecKeyDiff(diffKeys, s.bgpSecCurrent)
 	curserial, _ := s.getCurrentSerial()
 	s.vrplock.RUnlock()
-
+	// Now we have the needed starting data, we can read lock too
 	s.vrplock.Lock()
 	defer s.vrplock.Unlock()
 	newserial := s.generateSerial()
 	removed := s.addSerial(newserial)
 
-	nextDiff = append(nextDiff, diff)
-	if len(nextDiff) >= s.keepDiff && s.keepDiff > 0 {
-		nextDiff = nextDiff[len(removed):]
+	nextVRPDiff = append(nextVRPDiff, diffVRP)
+	nextKeysDiff = append(nextKeysDiff, diffKeys)
+	if (len(nextVRPDiff)+len(nextKeysDiff)) >= s.keepDiff && s.keepDiff > 0 {
+		nextVRPDiff = nextVRPDiff[len(removed):]
+		nextKeysDiff = nextKeysDiff[len(removed):]
 	}
-
-	s.vrpMapSerial[curserial] = len(nextDiff) - 1
+	s.vrpMapSerial[curserial] = len(nextVRPDiff) - 1
+	s.bgpSecMapSerial[curserial] = len(nextKeysDiff) - 1
 
 	if len(removed) > 0 {
 		for k, v := range s.vrpMapSerial {
@@ -411,13 +534,22 @@ func (s *Server) AddVRPsDiff(diff []VRP) {
 				s.vrpMapSerial[k] = v - len(removed)
 			}
 		}
+		for k, v := range s.bgpSecMapSerial {
+			if k != curserial {
+				s.bgpSecMapSerial[k] = v - len(removed)
+			}
+		}
 	}
 
 	for _, removeSerial := range removed {
 		delete(s.vrpMapSerial, removeSerial)
+		delete(s.bgpSecMapSerial, removeSerial)
 	}
-	s.vrpListDiff = nextDiff
+
+	s.vrpListDiff = nextVRPDiff
 	s.vrpCurrent = newVrpCurrent
+	s.bgpSecListDiff = nextKeysDiff
+	s.bgpSecCurrent = newBgpSecCurrent
 	s.setSerial(newserial)
 }
 
@@ -707,6 +839,7 @@ type Client struct {
 
 	enforceVersion      bool
 	disableVersionCheck bool
+	doNotSendBGPSEC     bool
 
 	refreshInterval uint32
 	retryInterval   uint32
@@ -777,9 +910,10 @@ func (c *Client) sendLoop() {
 		case pdu := <-c.transmits:
 			c.wr.Write(pdu.Bytes())
 		case <-c.quit:
-			break
+			goto abort
 		}
 	}
+abort:
 }
 
 func (c *Client) Start() {
@@ -849,6 +983,37 @@ func (c *Client) Notify(sessionId uint16, serialNumber uint32) {
 	c.SendPDU(pdu)
 }
 
+type BgpSecKey struct {
+	ASN    uint32
+	Pubkey []byte
+	Ski    []byte
+	Flags  uint8
+}
+
+func (r BgpSecKey) HashKey() string {
+	return fmt.Sprintf("%v-%v-%v", r.ASN, r.Ski, r.Pubkey)
+}
+
+func (r BgpSecKey) String() string {
+	return fmt.Sprintf("BgpSecKey %x -> AS%v, Flags: %v", r.Ski, r.ASN, r.Flags)
+}
+
+func (r1 BgpSecKey) Equals(r2 BgpSecKey) bool {
+	return r1.ASN == r2.ASN && bytes.Equal(r1.Ski, r2.Ski) && bytes.Equal(r1.Pubkey, r2.Pubkey)
+}
+
+func (r1 BgpSecKey) Copy() BgpSecKey {
+	newBgpSecKey := BgpSecKey{
+		ASN:    r1.ASN,
+		Pubkey: make([]byte, len(r1.Pubkey)),
+		Ski:    make([]byte, len(r1.Ski)),
+		Flags:  r1.Flags,
+	}
+	copy(newBgpSecKey.Pubkey, r1.Pubkey)
+	copy(newBgpSecKey.Ski, r1.Ski)
+	return newBgpSecKey
+}
+
 type VRP struct {
 	Prefix net.IPNet
 	MaxLen uint8
@@ -878,13 +1043,16 @@ func (r1 VRP) Copy() VRP {
 		Flags:  r1.Flags}
 }
 
-func (c *Client) SendVRPs(sessionId uint16, serialNumber uint32, vrps []VRP) {
+func (c *Client) SendClientData(sessionId uint16, serialNumber uint32, vrps []VRP, bgpSecKeys []BgpSecKey) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
 	for _, vrp := range vrps {
 		c.SendVRP(vrp)
+	}
+	for _, key := range bgpSecKeys {
+		c.SendBGPSecKey(key)
 	}
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
@@ -954,8 +1122,26 @@ func (c *Client) SendVRP(vrp VRP) {
 	}
 }
 
+func (c *Client) SendBGPSecKey(key BgpSecKey) {
+	if c.version == 0 {
+		// Do not allow router keys to be send on a version that does not support it
+		return
+	}
+	if c.doNotSendBGPSEC {
+		return
+	}
+
+	pdu := &PDURouterKey{
+		Version:              1,
+		Flags:                key.Flags,
+		SubjectKeyIdentifier: key.Ski,
+		ASN:                  key.ASN,
+		SubjectPublicKeyInfo: key.Pubkey,
+	}
+	c.SendPDU(pdu)
+}
+
 func (c *Client) SendRawPDU(pdu PDU) {
-	//c.tcpconn.Write(pdu.Bytes())
 	c.transmits <- pdu
 }
 

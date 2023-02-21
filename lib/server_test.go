@@ -30,7 +30,7 @@ func BaseBench(base int, multiplier int) {
 	newVrps := GenerateVrps(uint32(benchSize1), uint32(0))
 	benchSize2 := base
 	prevVrps := GenerateVrps(uint32(benchSize2), uint32(benchSize1-benchSize2/2))
-	ComputeDiff(newVrps, prevVrps)
+	ComputeVRPDiff(newVrps, prevVrps)
 }
 
 func BenchmarkComputeDiff1000x10(b *testing.B) {
@@ -82,7 +82,7 @@ func TestComputeDiff(t *testing.T) {
 			ASN:    65002,
 		},
 	}
-	added, removed, unchanged := ComputeDiff(newVrps, prevVrps)
+	added, removed, unchanged := ComputeVRPDiff(newVrps, prevVrps)
 	assert.Len(t, added, 1)
 	assert.Len(t, removed, 1)
 	assert.Len(t, unchanged, 1)
@@ -186,7 +186,7 @@ func TestApplyDiff(t *testing.T) {
 			Flags:  FLAG_REMOVED,
 		},
 	}
-	vrps := ApplyDiff(diff, prevVrps)
+	vrps := ApplyVRPDiff(diff, prevVrps)
 
 	assert.Len(t, vrps, 6)
 	assert.Equal(t, vrps[0].ASN, uint32(65001))

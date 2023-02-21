@@ -30,8 +30,22 @@ func (md MetaData) GetBuildTime() time.Time {
 }
 
 type VRPList struct {
-	Metadata MetaData  `json:"metadata,omitempty"`
-	Data     []VRPJson `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
+	Metadata   MetaData        `json:"metadata,omitempty"`
+	Data       []VRPJson       `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
+	BgpSecKeys []BgpSecKeyJson `json:"bgpsec_keys,omitempty"`
+}
+
+type BgpSecKeyJson struct {
+	Asn     uint32  `json:"asn"`
+	Expires *uint32 `json:"expires,omitempty"`
+	Ta      string  `json:"ta"`
+
+	// Base32 encoded
+	// Example: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4FxJr0n2bux1uX1Evl+QWwZYvIadPjLuFX2mxqKuAGUhKnr7VLLDgrE++l9p5eH2kWTNVAN22FUU3db/RKpE2w==
+	Pubkey []byte `json:"pubkey"`
+	// Base16 encoded
+	// Example: 510F485D29A29DB7B515F9C478F8ED3CB7AA7D23
+	Ski string `json:"ski"`
 }
 
 func (vrp *VRPJson) GetASN2() (uint32, error) {

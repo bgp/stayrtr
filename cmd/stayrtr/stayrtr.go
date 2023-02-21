@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -91,6 +92,8 @@ var (
 	LogLevel   = flag.String("loglevel", "info", "Log level")
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
+
+	DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
 
 	NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -197,7 +200,7 @@ func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 // 2 - The ASN is a valid ASN
 // 3 - The MaxLength is valid
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, and IPv6 VRPs
-func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
+func processData(vrplistjson []prefixfile.VRPJson, bgpsecjson []prefixfile.BgpSecKeyJson) ([]rtr.VRP, int, int, int, []rtr.BgpSecKey) {
 	filterDuplicates := make(map[string]bool)
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -254,7 +257,31 @@ func processData(vrplistjson []prefixfile.VRPJson) ([]rtr.VRP, int, int, int) {
 		}
 		vrplist = append(vrplist, vrp)
 	}
-	return vrplist, countv4 + countv6, countv4, countv6
+
+	bgpsecKeys := make([]rtr.BgpSecKey, 0)
+	for _, v := range bgpsecjson {
+
+		if v.Expires != nil {
+			// Prevent stale VRPs from being considered
+			// https://github.com/bgp/stayrtr/issues/15
+			if int(NowUnix) > int(*v.Expires) {
+				continue
+			}
+		}
+
+		SKIBytes, err := hex.DecodeString(v.Ski)
+		if err != nil {
+			continue
+		}
+
+		bgpsecKeys = append(bgpsecKeys, rtr.BgpSecKey{
+			ASN:    v.Asn,
+			Pubkey: v.Pubkey,
+			Ski:    SKIBytes,
+		})
+	}
+
+	return vrplist, countv4 + countv6, countv4, countv6, bgpsecKeys
 }
 
 type IdenticalFile struct {
@@ -295,10 +322,10 @@ func (s *state) updateFromNewState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, count, countv4, countv6 := processData(vrpsjson)
+	vrps, count, countv4, countv6, bgpsecKeys := processData(vrpsjson, s.lastdata.BgpSecKeys)
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
-	return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+	return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6, bgpsecKeys)
 }
 
 // Update the state based on the currently loaded files
@@ -329,16 +356,19 @@ func (s *state) reloadFromCurrentState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, count, countv4, countv6 := processData(vrpsjson)
+	vrps, count, countv4, countv6, bgpsecKeys := processData(vrpsjson, s.lastdata.BgpSecKeys)
 	if s.server.CountVRPs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
-		return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, sessid, vrpsjson, countv4, countv6, bgpsecKeys)
 	}
 	return nil
 }
 
-func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson []prefixfile.VRPJson, countv4 int, countv6 int) error {
-	s.server.AddVRPs(vrps)
+func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson []prefixfile.VRPJson,
+	countv4 int, countv6 int,
+	bgpSecKeys []rtr.BgpSecKey) error {
+	//
+	s.server.AddVRPsAndKeys(vrps, bgpSecKeys)
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
 	log.Infof("Updated added, new serial %v", serial)
@@ -513,7 +543,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 					// to avoid routing on stale data
 					buildTime := s.exported.Metadata.GetBuildTime()
 					if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
-						s.server.AddVRPs([]rtr.VRP{}) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
+						s.server.AddVRPsAndKeys([]rtr.VRP{}, nil) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
 					}
 				}
 				log.Errorf("Error updating from new state: %v", err)
