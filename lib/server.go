@@ -802,7 +802,7 @@ func (c *Client) sendLoop() {
 		case pdu := <-c.transmits:
 			c.wr.Write(pdu.Bytes())
 		case <-c.quit:
-			break
+			return
 		}
 	}
 }
