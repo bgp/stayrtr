@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -95,6 +96,18 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 		}
 		c.Data.Data = append(c.Data.Data, rj)
 		c.Data.Metadata.Counts++
+
+		if *LogDataPDU {
+			log.Debugf("Received: %v", pdu)
+		}
+	case *rtr.PDURouterKey:
+		skiHex := hex.EncodeToString(pdu.SubjectKeyIdentifier)
+		rj := prefixfile.BgpSecKeyJson{
+			Asn:    uint32(pdu.ASN),
+			Pubkey: pdu.SubjectPublicKeyInfo,
+			Ski:    skiHex,
+		}
+		c.Data.BgpSecKeys = append(c.Data.BgpSecKeys, rj)
 
 		if *LogDataPDU {
 			log.Debugf("Received: %v", pdu)

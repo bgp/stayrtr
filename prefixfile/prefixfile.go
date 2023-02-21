@@ -38,7 +38,7 @@ type VRPList struct {
 type BgpSecKeyJson struct {
 	Asn     uint32  `json:"asn"`
 	Expires *uint32 `json:"expires,omitempty"`
-	Ta      string  `json:"ta"`
+	Ta      string  `json:"ta,omitempty"`
 
 	// Base32 encoded, but encoding/json handles this for us
 	// Example: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4FxJr0n2bux1uX1Evl+QWwZYvIadPjLuFX2mxqKuAGUhKnr7VLLDgrE++l9p5eH2kWTNVAN22FUU3db/RKpE2w==
