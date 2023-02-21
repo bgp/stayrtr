@@ -338,7 +338,7 @@ func (s *state) reloadFromCurrentState() error {
 }
 
 func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, sessid uint16, vrpsjson []prefixfile.VRPJson, countv4 int, countv6 int) error {
-	s.server.AddVRPs(vrps)
+	s.server.AddData(vrps)
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
 	log.Infof("Updated added, new serial %v", serial)
@@ -513,7 +513,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 					// to avoid routing on stale data
 					buildTime := s.exported.Metadata.GetBuildTime()
 					if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
-						s.server.AddVRPs([]rtr.VRP{}) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
+						s.server.AddData([]rtr.VRP{}) // empty the store of VRP by giving it a empty VRP array, triggering a emptying
 					}
 				}
 				log.Errorf("Error updating from new state: %v", err)
@@ -637,7 +637,7 @@ func run() error {
 	}
 
 	server := rtr.NewServer(sc, me, deh)
-	deh.SetVRPManager(server)
+	deh.SetSDManager(server)
 
 	s := state{
 		server:       server,

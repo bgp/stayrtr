@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func GenerateVrps(size uint32, offset uint32) []VRP {
-	vrps := make([]VRP, size)
+func GenerateVrps(size uint32, offset uint32) []SendableData {
+	vrps := make([]SendableData, size)
 	for i := uint32(0); i < size; i++ {
 		ipFinal := make([]byte, 4)
 		binary.BigEndian.PutUint32(ipFinal, i+offset)
@@ -82,13 +82,22 @@ func TestComputeDiff(t *testing.T) {
 			ASN:    65002,
 		},
 	}
-	added, removed, unchanged := ComputeDiff(newVrps, prevVrps)
+
+	newVrpsSD, prevVrpsAsSD := make([]SendableData, 0), make([]SendableData, 0)
+	for _, v := range newVrps {
+		newVrpsSD = append(newVrpsSD, v)
+	}
+	for _, v := range prevVrps {
+		prevVrpsAsSD = append(prevVrpsAsSD, v)
+	}
+
+	added, removed, unchanged := ComputeDiff(newVrpsSD, prevVrpsAsSD)
 	assert.Len(t, added, 1)
 	assert.Len(t, removed, 1)
 	assert.Len(t, unchanged, 1)
-	assert.Equal(t, added[0].ASN, uint32(65003))
-	assert.Equal(t, removed[0].ASN, uint32(65001))
-	assert.Equal(t, unchanged[0].ASN, uint32(65002))
+	assert.Equal(t, added[0].(VRP).ASN, uint32(65003))
+	assert.Equal(t, removed[0].(VRP).ASN, uint32(65001))
+	assert.Equal(t, unchanged[0].(VRP).ASN, uint32(65002))
 }
 
 func TestApplyDiff(t *testing.T) {
@@ -186,19 +195,27 @@ func TestApplyDiff(t *testing.T) {
 			Flags:  FLAG_REMOVED,
 		},
 	}
-	vrps := ApplyDiff(diff, prevVrps)
+	diffSD, prevVrpsAsSD := make([]SendableData, 0), make([]SendableData, 0)
+	for _, v := range diff {
+		diffSD = append(diffSD, v)
+	}
+	for _, v := range prevVrps {
+		prevVrpsAsSD = append(prevVrpsAsSD, v)
+	}
+
+	vrps := ApplyDiff(diffSD, prevVrpsAsSD)
 
 	assert.Len(t, vrps, 6)
-	assert.Equal(t, vrps[0].ASN, uint32(65001))
-	assert.Equal(t, vrps[0].Flags, uint8(FLAG_ADDED))
-	assert.Equal(t, vrps[1].ASN, uint32(65005))
-	assert.Equal(t, vrps[1].Flags, uint8(FLAG_REMOVED))
-	assert.Equal(t, vrps[2].ASN, uint32(65003))
-	assert.Equal(t, vrps[2].Flags, uint8(FLAG_ADDED))
-	assert.Equal(t, vrps[3].ASN, uint32(65004))
-	assert.Equal(t, vrps[3].Flags, uint8(FLAG_REMOVED))
-	assert.Equal(t, vrps[4].ASN, uint32(65006))
-	assert.Equal(t, vrps[4].Flags, uint8(FLAG_REMOVED))
-	assert.Equal(t, vrps[5].ASN, uint32(65007))
-	assert.Equal(t, vrps[5].Flags, uint8(FLAG_ADDED))
+	assert.Equal(t, vrps[0].(VRP).ASN, uint32(65001))
+	assert.Equal(t, vrps[0].(VRP).Flags, uint8(FLAG_ADDED))
+	assert.Equal(t, vrps[1].(VRP).ASN, uint32(65005))
+	assert.Equal(t, vrps[1].(VRP).Flags, uint8(FLAG_REMOVED))
+	assert.Equal(t, vrps[2].(VRP).ASN, uint32(65003))
+	assert.Equal(t, vrps[2].(VRP).Flags, uint8(FLAG_ADDED))
+	assert.Equal(t, vrps[3].(VRP).ASN, uint32(65004))
+	assert.Equal(t, vrps[3].(VRP).Flags, uint8(FLAG_REMOVED))
+	assert.Equal(t, vrps[4].(VRP).ASN, uint32(65006))
+	assert.Equal(t, vrps[4].(VRP).Flags, uint8(FLAG_REMOVED))
+	assert.Equal(t, vrps[5].(VRP).ASN, uint32(65007))
+	assert.Equal(t, vrps[5].(VRP).Flags, uint8(FLAG_ADDED))
 }

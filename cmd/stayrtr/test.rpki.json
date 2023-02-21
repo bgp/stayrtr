@@ -1,7 +1,7 @@
 {
 	"metadata": {
 		"buildmachine": "ams-vrp-gen1.rpki-client.org",
-		"buildtime": "2021-07-27T18:56:02Z",
+		"buildtime": "2023-07-27T18:56:02Z",
 		"elapsedtime": "301",
 		"usertime": "208",
 		"systemtime": "113",
@@ -26,23 +26,23 @@
 	},
 
 	"roas": [
-		{ "asn": 13335, "prefix": "1.0.0.0/24", "maxLength": 24, "ta": "apnic", "expires": 1627568318 },
-		{ "asn": 38803, "prefix": "1.0.4.0/24", "maxLength": 24, "ta": "apnic", "expires": 1627559320 },
-		{ "asn": 38803, "prefix": "1.0.4.0/22", "maxLength": 22, "ta": "apnic", "expires": 1627559320 },
-		{ "asn": 38803, "prefix": "1.0.5.0/24", "maxLength": 24, "ta": "apnic", "expires": 1627559320 },
-		{ "asn": 9367, "prefix": "2001:200:136::/48", "maxLength": 48, "ta": "apnic", "expires": 1627575699 },
-		{ "asn": 24047, "prefix": "2001:200:1ba::/48", "maxLength": 48, "ta": "apnic", "expires": 1627575699 },
-		{ "asn": 7660, "prefix": "2001:200:900::/40", "maxLength": 40, "ta": "apnic", "expires": 1627575699 },
-		{ "asn": 4690, "prefix": "2001:200:e00::/40", "maxLength": 40, "ta": "apnic", "expires": 1627575699 },
-		{ "asn": 1103, "prefix": "2001:610::/32", "maxLength": 48, "ta": "ripe", "expires": 1627488503 },
-		{ "asn": 1103, "prefix": "2001:610::/29", "maxLength": 29, "ta": "ripe", "expires": 1627488503 },
-		{ "asn": 3333, "prefix": "2001:610:240::/42", "maxLength": 42, "ta": "ripe", "expires": 1627488503 },
-		{ "asn": 30999, "prefix": "2001:4248::/32", "maxLength": 64, "ta": "afrinic", "expires": 1627520144 },
-		{ "asn": 6453, "prefix": "2001:42c8::/32", "maxLength": 32, "ta": "afrinic", "expires": 1627520974 },
-		{ "asn": 33764, "prefix": "2001:42d0::/40", "maxLength": 40, "ta": "afrinic", "expires": 1627518625 },
-		{ "asn": 33764, "prefix": "2001:42d0:1500::/40", "maxLength": 40, "ta": "afrinic", "expires": 1627518625 },
-		{ "asn": 27808, "prefix": "2800:38::/32", "maxLength": 128, "ta": "lacnic", "expires": 1627677646 },
-		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 48, "ta": "lacnic", "expires": 1627665407 },
-		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 32, "ta": "lacnic", "expires": 1627665407 }
+		{ "asn": 13335, "prefix": "1.0.0.0/24", "maxLength": 24, "ta": "apnic", "expires": 1827568318 },
+		{ "asn": 38803, "prefix": "1.0.4.0/24", "maxLength": 24, "ta": "apnic", "expires": 1827559320 },
+		{ "asn": 38803, "prefix": "1.0.4.0/22", "maxLength": 22, "ta": "apnic", "expires": 1827559320 },
+		{ "asn": 38803, "prefix": "1.0.5.0/24", "maxLength": 24, "ta": "apnic", "expires": 1827559320 },
+		{ "asn": 9367, "prefix": "2001:200:136::/48", "maxLength": 48, "ta": "apnic", "expires": 1827575699 },
+		{ "asn": 24047, "prefix": "2001:200:1ba::/48", "maxLength": 48, "ta": "apnic", "expires": 1827575699 },
+		{ "asn": 7660, "prefix": "2001:200:900::/40", "maxLength": 40, "ta": "apnic", "expires": 1827575699 },
+		{ "asn": 4690, "prefix": "2001:200:e00::/40", "maxLength": 40, "ta": "apnic", "expires": 1827575699 },
+		{ "asn": 1103, "prefix": "2001:610::/32", "maxLength": 48, "ta": "ripe", "expires": 1827488503 },
+		{ "asn": 1103, "prefix": "2001:610::/29", "maxLength": 29, "ta": "ripe", "expires": 1827488503 },
+		{ "asn": 3333, "prefix": "2001:610:240::/42", "maxLength": 42, "ta": "ripe", "expires": 1827488503 },
+		{ "asn": 30999, "prefix": "2001:4248::/32", "maxLength": 64, "ta": "afrinic", "expires": 1827520144 },
+		{ "asn": 6453, "prefix": "2001:42c8::/32", "maxLength": 32, "ta": "afrinic", "expires": 1827520974 },
+		{ "asn": 33764, "prefix": "2001:42d0::/40", "maxLength": 40, "ta": "afrinic", "expires": 1827518625 },
+		{ "asn": 33764, "prefix": "2001:42d0:1500::/40", "maxLength": 40, "ta": "afrinic", "expires": 1827518625 },
+		{ "asn": 27808, "prefix": "2800:38::/32", "maxLength": 128, "ta": "lacnic", "expires": 1827677646 },
+		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 48, "ta": "lacnic", "expires": 1827665407 },
+		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 32, "ta": "lacnic", "expires": 1827665407 }
 	]
 }
