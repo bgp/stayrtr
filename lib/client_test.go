@@ -1,6 +1,8 @@
 package rtrlib
 
 import (
+	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/bgp/stayrtr/prefixfile"
@@ -96,5 +98,31 @@ func TestSendSerialQuery(t *testing.T) {
 				t.Errorf("Wanted (%+v), but got (%+v)", tc.want, c)
 			}
 		})
+	}
+}
+
+func TestRouterKeyEncodeDecode(t *testing.T) {
+	p := &PDURouterKey{
+		Version:              1,
+		Flags:                1,
+		SubjectKeyIdentifier: []byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01},
+		ASN:                  64497,
+		SubjectPublicKeyInfo: []byte("This is not a real key"),
+	}
+
+	buf := bytes.NewBuffer(nil)
+	p.Write(buf)
+
+	outputPdu, err := Decode(buf)
+
+	if err != nil {
+		t.FailNow()
+	}
+
+	orig := fmt.Sprintf("%#v", p)
+	decode := fmt.Sprintf("%#v", outputPdu)
+	if orig != decode {
+		t.Fatalf("%s\n is not\n%s", orig, decode)
+		t.FailNow()
 	}
 }

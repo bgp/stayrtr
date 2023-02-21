@@ -417,9 +417,9 @@ func (pdu *PDUCacheReset) Write(wr io.Writer) {
 type PDURouterKey struct {
 	Version              uint8
 	Flags                uint8
-	SubjectKeyIdentifier [20]byte
+	SubjectKeyIdentifier []byte
 	ASN                  uint32
-	SubjectPublicKeyInfo uint32
+	SubjectPublicKeyInfo []byte
 }
 
 func (pdu *PDURouterKey) String() string {
@@ -445,14 +445,18 @@ func (pdu *PDURouterKey) GetType() uint8 {
 }
 
 func (pdu *PDURouterKey) Write(wr io.Writer) {
+	if len(pdu.SubjectKeyIdentifier) != 20 {
+		return
+	}
+
 	binary.Write(wr, binary.BigEndian, uint8(pdu.Version))
 	binary.Write(wr, binary.BigEndian, uint8(PDU_ID_ROUTER_KEY))
 	binary.Write(wr, binary.BigEndian, uint8(pdu.Flags))
 	binary.Write(wr, binary.BigEndian, uint8(0))
-	binary.Write(wr, binary.BigEndian, uint32(36))
-	binary.Write(wr, binary.BigEndian, pdu.SubjectKeyIdentifier)
+	binary.Write(wr, binary.BigEndian, uint32(32+len(pdu.SubjectPublicKeyInfo)))
+	wr.Write(pdu.SubjectKeyIdentifier)
 	binary.Write(wr, binary.BigEndian, pdu.ASN)
-	binary.Write(wr, binary.BigEndian, pdu.SubjectPublicKeyInfo)
+	wr.Write(pdu.SubjectPublicKeyInfo)
 }
 
 type PDUErrorReport struct {
@@ -653,16 +657,18 @@ func Decode(rdr io.Reader) (PDU, error) {
 			Version: pver,
 		}, nil
 	case PDU_ID_ROUTER_KEY:
-		if len(toread) != 28 {
-			return nil, fmt.Errorf("wrong length for Router Key PDU: %d < 8", len(toread))
+		if len(toread) < 28 {
+			return nil, fmt.Errorf("wrong length for Router Key PDU: %d < 28", len(toread))
 		}
 		asn := binary.BigEndian.Uint32(toread[20:24])
-		spki := binary.BigEndian.Uint32(toread[24:28])
-		ski := [20]byte{}
+		spki := toread[24:]
+		ski := make([]byte, 20)
 		copy(ski[:], toread[0:20])
 		return &PDURouterKey{
 			Version:              pver,
 			SubjectKeyIdentifier: ski,
+			// Router Key uses a rarely used spot that is also used by the SessionID, So we we will just bitshift
+			Flags:                uint8(sessionId >> 8),
 			ASN:                  asn,
 			SubjectPublicKeyInfo: spki,
 		}, nil
