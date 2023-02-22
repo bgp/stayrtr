@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -1020,6 +1021,45 @@ func (ASPAr *ASPARecord) GetFlag() uint8 {
 }
 
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
+	sort.Slice(data, func(i, j int) bool {
+		if data[i].Type() == "VRP" && data[i].Type() != "VRP" {
+			return false // Always send VRPs first
+		}
+		if data[i].Type() == "VRP" && data[j].Type() == "VRP" {
+			// Sort VRPs as per draft-ietf-sidrops-8210bis-10
+			/*
+				11. ROA PDU Race Minimization
+					When a cache is sending ROA (IPv4 or IPv6) PDUs to a router, especially an initial
+					full load in response to a Reset Query PDU, two undesirable race conditions are possible:
+
+				Break Before Make:
+					For some prefix P, an AS may announce two (or more) ROAs because they are in the
+					process of changing what provider AS is announcing P. This is a case of "make before break."
+					If a cache is feeding a router and sends the one not yet in service a significant time
+					before sending the one currently in service, then BGP data could be marked invalid during
+					the interval. To minimize that interval, the cache SHOULD announce all ROAs for the same
+					prefix as close to sequentially as possible.
+				Shorter Prefix First:
+					If an AS has issued a ROA for P0, and another AS (likely their customer) has issued a ROA
+					for P1 which is a sub-prefix of P0, a router which receives the ROA for P0 before that for
+					P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
+					sub-prefix P1 before the covering prefix P0.
+			*/
+			VRPi, VRPj := data[i].(*VRP), data[j].(*VRP)
+			CIDRSizei, _ := VRPi.Prefix.Mask.Size()
+			CIDRSizej, _ := VRPj.Prefix.Mask.Size()
+			if CIDRSizei == CIDRSizej {
+				if VRPi.MaxLen != VRPj.MaxLen {
+					return VRPi.MaxLen > VRPj.MaxLen
+				}
+				return bytes.Compare(VRPi.Prefix.IP, VRPj.Prefix.IP) < 1
+			} else {
+				return CIDRSizei > CIDRSizej
+			}
+		}
+		return true
+	})
+
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
