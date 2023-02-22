@@ -10,7 +10,13 @@ import (
 )
 
 func TestBuildNewVrpMap_expiry(t *testing.T) {
-	stuff := testData()
+	stuff := testDataFile()
+	emptyFile := &prefixfile.VRPList{
+		Metadata:   prefixfile.MetaData{},
+		Data:       []prefixfile.VRPJson{},
+		BgpSecKeys: []prefixfile.BgpSecKeyJson{},
+	}
+
 	now := time.Now()
 	log := log.WithField("client", "TestBuildNewVrpMap_expiry")
 
@@ -19,7 +25,7 @@ func TestBuildNewVrpMap_expiry(t *testing.T) {
 		t.Errorf("Initial build does not have objects in grace period")
 	}
 
-	_, inGracePeriodPreserved := BuildNewVrpMap(log, res, []prefixfile.VRPJson{}, now.Add(time.Minute*10))
+	_, inGracePeriodPreserved := BuildNewVrpMap(log, res, emptyFile, now.Add(time.Minute*10))
 	if inGracePeriodPreserved != len(res) {
 		t.Errorf("All objects are in grace period")
 	}
@@ -27,16 +33,16 @@ func TestBuildNewVrpMap_expiry(t *testing.T) {
 	// Objects are kept in grace period
 	// 1s before grace period ends
 	t1 := now.Add(*GracePeriod).Add(-time.Second * 1)
-	res, inGracePeriod = BuildNewVrpMap(log, res, []prefixfile.VRPJson{}, t1)
+	res, inGracePeriod = BuildNewVrpMap(log, res, emptyFile, t1)
 
 	assertLastSeenMatchesTimeCount(t, res, t1, 0)
-	assertLastSeenMatchesTimeCount(t, res, now, len(stuff))
-	if inGracePeriod != len(stuff) {
-		t.Errorf("All objects should be in grace period. Expected: %d, actual: %d", len(stuff), inGracePeriod)
+	assertLastSeenMatchesTimeCount(t, res, now, len(stuff.Data))
+	if inGracePeriod != len(stuff.Data) {
+		t.Errorf("All objects should be in grace period. Expected: %d, actual: %d", len(stuff.Data), inGracePeriod)
 	}
 
 	// 1s after grace period ends, they are removed
-	res, inGracePeriod = BuildNewVrpMap(log, res, []prefixfile.VRPJson{}, now.Add(*GracePeriod).Add(time.Second*1))
+	res, inGracePeriod = BuildNewVrpMap(log, res, emptyFile, now.Add(*GracePeriod).Add(time.Second*1))
 	if len(res) != 0 {
 		t.Errorf("Expected no objects to be left after grace period, actual: %d", len(res))
 	}
@@ -48,23 +54,23 @@ func TestBuildNewVrpMap_expiry(t *testing.T) {
 func TestBuildNewVrpMap_firsSeen_lastSeen(t *testing.T) {
 	t0 := time.Now()
 	log := log.WithField("client", "TestBuildNewVrpMap_firstSeen_lastSeen")
-	stuff := testData()
+	stuff := testDataFile()
 
 	var res, _ = BuildNewVrpMap(log, make(VRPMap), stuff, t0)
 
 	// All have firstSeen + lastSeen equal to t0
-	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff))
-	assertLastSeenMatchesTimeCount(t, res, t0, len(stuff))
-	assertVisibleMatchesTimeCount(t, res, len(stuff))
+	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff.Data))
+	assertLastSeenMatchesTimeCount(t, res, t0, len(stuff.Data))
+	assertVisibleMatchesTimeCount(t, res, len(stuff.Data))
 
 	// Supply same data again later
 	t1 := t0.Add(time.Minute * 10)
 	res, _ = BuildNewVrpMap(log, res, stuff, t1)
 
 	// FirstSeen is constant, LastSeen gets updated, none removed
-	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff))
-	assertLastSeenMatchesTimeCount(t, res, t1, len(stuff))
-	assertVisibleMatchesTimeCount(t, res, len(stuff))
+	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff.Data))
+	assertLastSeenMatchesTimeCount(t, res, t1, len(stuff.Data))
+	assertVisibleMatchesTimeCount(t, res, len(stuff.Data))
 
 	// Supply one new VRP, expect one at new time, others at old time
 	otherStuff := []prefixfile.VRPJson{
@@ -75,12 +81,17 @@ func TestBuildNewVrpMap_firsSeen_lastSeen(t *testing.T) {
 			TA:     "testrir",
 		},
 	}
+	otherStuffFile := prefixfile.VRPList{
+		Metadata:   prefixfile.MetaData{},
+		Data:       otherStuff,
+		BgpSecKeys: []prefixfile.BgpSecKeyJson{},
+	}
 	t2 := t1.Add(time.Minute * 10)
-	res, _ = BuildNewVrpMap(log, res, otherStuff, t2)
+	res, _ = BuildNewVrpMap(log, res, &otherStuffFile, t2)
 
 	// LastSeen gets updated just for the new item
-	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff))
-	assertLastSeenMatchesTimeCount(t, res, t1, len(stuff))
+	assertFirstSeenMatchesTimeCount(t, res, t0, len(stuff.Data))
+	assertLastSeenMatchesTimeCount(t, res, t1, len(stuff.Data))
 
 	assertFirstSeenMatchesTimeCount(t, res, t2, len(otherStuff))
 	assertLastSeenMatchesTimeCount(t, res, t2, len(otherStuff))
@@ -151,4 +162,13 @@ func testData() []prefixfile.VRPJson {
 	)
 
 	return stuff
+}
+
+func testDataFile() *prefixfile.VRPList {
+	stuff := prefixfile.VRPList{
+		Metadata:   prefixfile.MetaData{},
+		Data:       testData(),
+		BgpSecKeys: []prefixfile.BgpSecKeyJson{},
+	}
+	return &stuff
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -345,7 +346,7 @@ func (c *Client) Start(id int, ch chan int) {
 					continue
 				}
 
-				updatedVrpMap, inGracePeriod = BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded.Data, tCurrentUpdate)
+				updatedVrpMap, inGracePeriod = BuildNewVrpMap(log.WithField("client", c.id), c.vrps, decoded, tCurrentUpdate)
 			}
 
 			VRPInGracePeriod.With(prometheus.Labels{"url": c.Path}).Set(float64(inGracePeriod))
@@ -368,7 +369,8 @@ func (c *Client) Start(id int, ch chan int) {
 //   * contains all the VRPs in newVRPs
 //   * keeps the firstSeen value for VRPs already in the old map
 //   * keeps elements around for GracePeriod after they are not in the input.
-func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRPJson, now time.Time) (VRPMap, int) {
+func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, pfxFile *prefixfile.VRPList, now time.Time) (VRPMap, int) {
+	var newVrps = pfxFile.Data
 	tCurrentUpdate := now.Unix()
 	res := make(VRPMap)
 
@@ -401,6 +403,27 @@ func BuildNewVrpMap(log *log.Entry, currentVrps VRPMap, newVrps []prefixfile.VRP
 			FirstSeen: firstSeen,
 			LastSeen:  tCurrentUpdate,
 			Visible:   true,
+		}
+	}
+
+	for _, bgpsecKey := range pfxFile.BgpSecKeys {
+		key := fmt.Sprintf("%s-%d-%s", bgpsecKey.Ski, bgpsecKey.Asn, bgpsecKey.Pubkey)
+
+		firstSeen := tCurrentUpdate
+		currentEntry, ok := currentVrps[key]
+		if ok && currentEntry.Visible {
+			// VRP is still visible, so keep the existing `FirstSeen`.
+			firstSeen = currentEntry.FirstSeen
+		}
+
+		copyOf := bgpsecKey
+
+		res[key] = &VRPJsonSimple{
+			ASN:        bgpsecKey.Asn,
+			FirstSeen:  firstSeen,
+			LastSeen:   tCurrentUpdate,
+			Visible:    true,
+			BGPSecData: &copyOf,
 		}
 	}
 
@@ -474,6 +497,28 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 		}
 
 		key := fmt.Sprintf("%s-%d-%d", pdu.Prefix.String(), pdu.MaxLen, pdu.ASN)
+		c.compRtrLock.Lock()
+
+		if pdu.Flags == rtr.FLAG_ADDED {
+			c.vrpsRtr[key] = &vrp
+		} else {
+			delete(c.vrpsRtr, key)
+		}
+
+		c.compRtrLock.Unlock()
+	case *rtr.PDURouterKey:
+		vrp := VRPJsonSimple{
+			ASN:       pdu.ASN,
+			FirstSeen: time.Now().Unix(),
+			Visible:   true,
+			BGPSecData: &prefixfile.BgpSecKeyJson{
+				Asn:    pdu.ASN,
+				Pubkey: pdu.SubjectPublicKeyInfo,
+				Ski:    hex.EncodeToString(pdu.SubjectKeyIdentifier),
+			},
+		}
+
+		key := fmt.Sprintf("%s-%d-%s", vrp.BGPSecData.Ski, pdu.ASN, pdu.SubjectPublicKeyInfo)
 		c.compRtrLock.Lock()
 
 		if pdu.Flags == rtr.FLAG_ADDED {
@@ -678,12 +723,13 @@ type diffMetadata struct {
 }
 
 type VRPJsonSimple struct {
-	ASN       uint32 `json:"asn"`
-	Length    uint8  `json:"max-length"`
-	Prefix    string `json:"prefix"`
-	FirstSeen int64  `json:"first-seen"`
-	LastSeen  int64  `json:"last-seen"`
-	Visible   bool   `json:"visible"`
+	ASN        uint32                    `json:"asn"`
+	Length     uint8                     `json:"max-length"`
+	Prefix     string                    `json:"prefix"`
+	FirstSeen  int64                     `json:"first-seen"`
+	LastSeen   int64                     `json:"last-seen"`
+	Visible    bool                      `json:"visible"`
+	BGPSecData *prefixfile.BgpSecKeyJson `json:"bgpsec,omitempty"`
 }
 type VRPMap map[string]*VRPJsonSimple
 
