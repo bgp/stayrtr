@@ -49,6 +49,9 @@ const (
 	PDU_ERROR_WITHDRAWUNKNOWN = 6
 	PDU_ERROR_DUPANNOUNCE     = 7
 
+	AFI_IPv4 = uint8(0)
+	AFI_IPv6 = uint8(1)
+
 	TYPE_UNKNOWN = iota
 	TYPE_PLAIN
 	TYPE_TLS
@@ -376,7 +379,7 @@ func (pdu *PDUEndOfData) Write(wr io.Writer) {
 	if pdu.Version == PROTOCOL_VERSION_0 {
 		binary.Write(wr, binary.BigEndian, uint32(12))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
-	} else if pdu.Version == PROTOCOL_VERSION_1 {
+	} else if pdu.Version == PROTOCOL_VERSION_1 || pdu.Version == PROTOCOL_VERSION_2 {
 		binary.Write(wr, binary.BigEndian, uint32(24))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
 		binary.Write(wr, binary.BigEndian, pdu.RefreshInterval)

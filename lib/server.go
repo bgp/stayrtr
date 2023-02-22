@@ -772,7 +772,7 @@ func (c *Client) SetDisableVersionCheck(disableCheck bool) {
 }
 
 func (c *Client) checkVersion(newversion uint8) {
-	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
+	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_2 || newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
 		c.SetVersion(newversion)
 	} else {
 		if c.log != nil {
@@ -972,6 +972,53 @@ func (bsk *BgpsecKey) GetFlag() uint8 {
 	return bsk.Flags
 }
 
+type ASPARecord struct {
+	Flags       uint8
+	AFI         uint8
+	CustomerASN uint32
+	Providers   []uint32
+}
+
+func (ASPAr *ASPARecord) Type() string {
+	return "ASPA"
+}
+
+func (ASPAr *ASPARecord) String() string {
+	return fmt.Sprintf("ASPA AS%v -> AFI %d, Providers: %v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+}
+
+func (ASPAr *ASPARecord) HashKey() string {
+	return fmt.Sprintf("%v-%x-%v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+}
+
+func (r1 *ASPARecord) Equals(r2 SendableData) bool {
+	if r1.Type() != r2.Type() {
+		return false
+	}
+
+	r2True := r2.(*ASPARecord)
+	return r1.CustomerASN == r2True.CustomerASN && fmt.Sprint(r1.Providers) == fmt.Sprint(r2True.Providers) /*This could be made faster*/
+}
+
+func (ASPAr *ASPARecord) Copy() SendableData {
+	cop := ASPARecord{
+		CustomerASN: ASPAr.CustomerASN,
+		AFI:         ASPAr.AFI,
+		Flags:       ASPAr.Flags,
+		Providers:   make([]uint32, 0),
+	}
+	cop.Providers = append(cop.Providers, ASPAr.Providers...)
+	return &cop
+}
+
+func (ASPAr *ASPARecord) SetFlag(f uint8) {
+	ASPAr.Flags = f
+}
+
+func (ASPAr *ASPARecord) GetFlag() uint8 {
+	return ASPAr.Flags
+}
+
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
@@ -1060,6 +1107,20 @@ func (c *Client) SendData(sd SendableData) {
 			SubjectKeyIdentifier: t.Ski,
 			ASN:                  t.ASN,
 			SubjectPublicKeyInfo: t.Pubkey,
+		}
+		c.SendPDU(pdu)
+	case *ASPARecord:
+		if c.version < 2 || c.dontSendBGPsecKeys {
+			return
+		}
+
+		pdu := &PDUASPA{
+			Version:           c.version,
+			Flags:             t.Flags,
+			AFIFlags:          t.AFI,
+			ProviderASCount:   uint16(len(t.Providers)),
+			CustomerASNumber:  t.CustomerASN,
+			ProviderASNumbers: t.Providers,
 		}
 		c.SendPDU(pdu)
 	}
