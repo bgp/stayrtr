@@ -17,7 +17,7 @@ _This software comes with no warranty._
 ## Sponsors
 
 The StayRTR project was built on contributions of money and time.
-Special thanks for support to the Route Server Support Foundation [RSSF](https://www.rssf.nl) and [Internet Society](https://www.internetsociety.org/).
+Special thanks for support to the Route Server Support Foundation [RSSF](https://www.rssf.nl), [Internet Society](https://www.internetsociety.org/) and [PCCW Global](https://www.pccwglobal.com/).
 
 ## Features of the server
 
