@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -535,6 +536,7 @@ func (s *Server) Start(bind string) error {
 }
 
 var DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+var DisableASPA = flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
 
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	client := ClientFromConn(tcpconn, s, s)
@@ -545,6 +547,9 @@ func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	client.SetIntervals(s.pduRefreshInterval, s.pduRetryInterval, s.pduExpireInterval)
 	if *DisableBGPSec {
 		client.DisableBGPsec()
+	}
+	if *DisableASPA {
+		client.DisableASPA()
 	}
 	go client.Start()
 	return nil
@@ -732,6 +737,7 @@ type Client struct {
 	expireInterval  uint32
 
 	dontSendBGPsecKeys bool
+	dontSendASPA       bool
 
 	log Logger
 }
@@ -756,6 +762,10 @@ func (c *Client) DisableBGPsec() {
 	c.dontSendBGPsecKeys = true
 }
 
+func (c *Client) DisableASPA() {
+	c.dontSendASPA = true
+}
+
 func (c *Client) SetIntervals(refreshInterval uint32, retryInterval uint32, expireInterval uint32) {
 	c.refreshInterval = refreshInterval
 	c.retryInterval = retryInterval
@@ -772,7 +782,7 @@ func (c *Client) SetDisableVersionCheck(disableCheck bool) {
 }
 
 func (c *Client) checkVersion(newversion uint8) {
-	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
+	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_2 || newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
 		c.SetVersion(newversion)
 	} else {
 		if c.log != nil {
@@ -972,7 +982,93 @@ func (bsk *BgpsecKey) GetFlag() uint8 {
 	return bsk.Flags
 }
 
+type ASPARecord struct {
+	Flags       uint8
+	AFI         uint8
+	CustomerASN uint32
+	Providers   []uint32
+}
+
+func (ASPAr *ASPARecord) Type() string {
+	return "ASPA"
+}
+
+func (ASPAr *ASPARecord) String() string {
+	return fmt.Sprintf("ASPA AS%v -> AFI %d, Providers: %v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+}
+
+func (ASPAr *ASPARecord) HashKey() string {
+	return fmt.Sprintf("%v-%x-%v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+}
+
+func (r1 *ASPARecord) Equals(r2 SendableData) bool {
+	if r1.Type() != r2.Type() {
+		return false
+	}
+
+	r2True := r2.(*ASPARecord)
+	return r1.CustomerASN == r2True.CustomerASN && fmt.Sprint(r1.Providers) == fmt.Sprint(r2True.Providers) /*This could be made faster*/
+}
+
+func (ASPAr *ASPARecord) Copy() SendableData {
+	cop := ASPARecord{
+		CustomerASN: ASPAr.CustomerASN,
+		AFI:         ASPAr.AFI,
+		Flags:       ASPAr.Flags,
+		Providers:   make([]uint32, 0),
+	}
+	cop.Providers = append(cop.Providers, ASPAr.Providers...)
+	return &cop
+}
+
+func (ASPAr *ASPARecord) SetFlag(f uint8) {
+	ASPAr.Flags = f
+}
+
+func (ASPAr *ASPARecord) GetFlag() uint8 {
+	return ASPAr.Flags
+}
+
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
+	sort.Slice(data, func(i, j int) bool {
+		if data[i].Type() == "VRP" && data[i].Type() != "VRP" {
+			return false // Always send VRPs first
+		}
+		if data[i].Type() == "VRP" && data[j].Type() == "VRP" {
+			// Sort VRPs as per draft-ietf-sidrops-8210bis-10
+			/*
+				11. ROA PDU Race Minimization
+					When a cache is sending ROA (IPv4 or IPv6) PDUs to a router, especially an initial
+					full load in response to a Reset Query PDU, two undesirable race conditions are possible:
+
+				Break Before Make:
+					For some prefix P, an AS may announce two (or more) ROAs because they are in the
+					process of changing what provider AS is announcing P. This is a case of "make before break."
+					If a cache is feeding a router and sends the one not yet in service a significant time
+					before sending the one currently in service, then BGP data could be marked invalid during
+					the interval. To minimize that interval, the cache SHOULD announce all ROAs for the same
+					prefix as close to sequentially as possible.
+				Shorter Prefix First:
+					If an AS has issued a ROA for P0, and another AS (likely their customer) has issued a ROA
+					for P1 which is a sub-prefix of P0, a router which receives the ROA for P0 before that for
+					P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
+					sub-prefix P1 before the covering prefix P0.
+			*/
+			VRPi, VRPj := data[i].(*VRP), data[j].(*VRP)
+			CIDRSizei, _ := VRPi.Prefix.Mask.Size()
+			CIDRSizej, _ := VRPj.Prefix.Mask.Size()
+			if CIDRSizei == CIDRSizej {
+				if VRPi.MaxLen != VRPj.MaxLen {
+					return VRPi.MaxLen > VRPj.MaxLen
+				}
+				return bytes.Compare(VRPi.Prefix.IP, VRPj.Prefix.IP) < 1
+			} else {
+				return CIDRSizei > CIDRSizej
+			}
+		}
+		return true
+	})
+
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
@@ -1060,6 +1156,20 @@ func (c *Client) SendData(sd SendableData) {
 			SubjectKeyIdentifier: t.Ski,
 			ASN:                  t.ASN,
 			SubjectPublicKeyInfo: t.Pubkey,
+		}
+		c.SendPDU(pdu)
+	case *ASPARecord:
+		if c.version < 2 || c.dontSendASPA {
+			return
+		}
+
+		pdu := &PDUASPA{
+			Version:           c.version,
+			Flags:             t.Flags,
+			AFIFlags:          t.AFI,
+			ProviderASCount:   uint16(len(t.Providers)),
+			CustomerASNumber:  t.CustomerASN,
+			ProviderASNumbers: t.Providers,
 		}
 		c.SendPDU(pdu)
 	}

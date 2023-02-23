@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -52,7 +53,7 @@ var (
 
 	ExportPath = flag.String("export.path", "/rpki.json", "Export path")
 
-	RTRVersion = flag.Int("protocol", 1, "RTR protocol version")
+	RTRVersion = flag.Int("protocol", 2, "RTR protocol version. Version 2 is draft-ietf-sidrops-8210bis-10")
 	RefreshRTR = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR   = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR  = flag.Int("rtr.expire", 7200, "Expire interval")
@@ -146,6 +147,7 @@ var (
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
+		2: rtr.PROTOCOL_VERSION_2,
 	}
 )
 
@@ -195,8 +197,11 @@ func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 // 1 - The prefix is a valid prefix
 // 2 - The ASN is a valid ASN
 // 3 - The MaxLength is valid
-// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, and IPv6 VRPs
-func processData(vrplistjson []prefixfile.VRPJson, bsklistjson []prefixfile.BgpSecKeyJson) ([]rtr.VRP, []rtr.BgpsecKey, int, int, int) {
+// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs, BGPsec Keys and ASPA records
+func processData(vrplistjson []prefixfile.VRPJson,
+	bsklistjson []prefixfile.BgpSecKeyJson,
+	aspajson *prefixfile.ProviderAuthorizationsJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.ASPARecord, int, int, int) {
+	//
 	filterDuplicates := make(map[string]bool)
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -207,6 +212,7 @@ func processData(vrplistjson []prefixfile.VRPJson, bsklistjson []prefixfile.BgpS
 
 	var vrplist []rtr.VRP
 	var bsklist = make([]rtr.BgpsecKey, 0)
+	var aspalist = make([]rtr.ASPARecord, 0)
 	var countv4 int
 	var countv6 int
 
@@ -276,7 +282,35 @@ func processData(vrplistjson []prefixfile.VRPJson, bsklistjson []prefixfile.BgpS
 		})
 	}
 
-	return vrplist, bsklist, countv4 + countv6, countv4, countv6
+	if aspajson != nil {
+		aspalist = handleASPAList(aspajson.IPv4, NowUnix, aspalist, rtr.AFI_IPv4)
+		aspalist = handleASPAList(aspajson.IPv6, NowUnix, aspalist, rtr.AFI_IPv6)
+	}
+
+	return vrplist, bsklist, aspalist, countv4 + countv6, countv4, countv6
+}
+
+func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.ASPARecord, AFI uint8) []rtr.ASPARecord {
+	for _, v := range list {
+		if v.Expires != nil {
+			if int(NowUnix) > int(*v.Expires) {
+				continue
+			}
+		}
+
+		// Ensure that these are sorted, otherwise they
+		// don't has right.
+		sort.Slice(v.Providers, func(i, j int) bool {
+			return v.Providers[i] < v.Providers[j]
+		})
+
+		aspalist = append(aspalist, rtr.ASPARecord{
+			AFI:         AFI,
+			CustomerASN: v.CustomerAsid,
+			Providers:   v.Providers,
+		})
+	}
+	return aspalist
 }
 
 type IdenticalFile struct {
@@ -317,10 +351,10 @@ func (s *state) updateFromNewState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, bsks, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys)
+	vrps, bsks, aspas, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA)
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
-	return s.applyUpdateFromNewState(vrps, bsks, sessid, vrpsjson, s.lastdata.BgpSecKeys, countv4, countv6)
+	return s.applyUpdateFromNewState(vrps, bsks, aspas, sessid, vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA, countv4, countv6)
 }
 
 // Update the state based on the currently loaded files
@@ -351,16 +385,17 @@ func (s *state) reloadFromCurrentState() error {
 		vrpsjson = append(kept, asserted...)
 	}
 
-	vrps, bsks, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys)
+	vrps, bsks, aspas, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA)
 	if s.server.CountVRPs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
-		return s.applyUpdateFromNewState(vrps, bsks, sessid, vrpsjson, s.lastdata.BgpSecKeys, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, bsks, aspas, sessid, vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA, countv4, countv6)
 	}
 	return nil
 }
 
-func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, bsks []rtr.BgpsecKey, sessid uint16,
-	vrpsjson []prefixfile.VRPJson, bsksjson []prefixfile.BgpSecKeyJson,
+func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, bsks []rtr.BgpsecKey, aspas []rtr.ASPARecord,
+	sessid uint16,
+	vrpsjson []prefixfile.VRPJson, bsksjson []prefixfile.BgpSecKeyJson, aspajson *prefixfile.ProviderAuthorizationsJson,
 	countv4 int, countv6 int) error {
 
 	SDs := make([]rtr.SendableData, 0)
@@ -368,6 +403,9 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, bsks []rtr.BgpsecKey, se
 		SDs = append(SDs, v.Copy())
 	}
 	for _, v := range bsks {
+		SDs = append(SDs, v.Copy())
+	}
+	for _, v := range aspas {
 		SDs = append(SDs, v.Copy())
 	}
 	s.server.AddData(SDs)
@@ -387,6 +425,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, bsks []rtr.BgpsecKey, se
 		},
 		Data:       vrpsjson,
 		BgpSecKeys: bsksjson,
+		ASPA:       aspajson,
 	}
 
 	s.lockJson.Unlock()

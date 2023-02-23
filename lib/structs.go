@@ -23,6 +23,7 @@ const (
 
 	PROTOCOL_VERSION_0 = 0
 	PROTOCOL_VERSION_1 = 1
+	PROTOCOL_VERSION_2 = 2
 
 	PDU_ID_SERIAL_NOTIFY  = 0
 	PDU_ID_SERIAL_QUERY   = 1
@@ -34,6 +35,7 @@ const (
 	PDU_ID_CACHE_RESET    = 8
 	PDU_ID_ROUTER_KEY     = 9
 	PDU_ID_ERROR_REPORT   = 10
+	PDU_ID_ASPA           = 11
 
 	FLAG_ADDED   = 1
 	FLAG_REMOVED = 0
@@ -46,6 +48,9 @@ const (
 	PDU_ERROR_BADPDUTYPE      = 5
 	PDU_ERROR_WITHDRAWUNKNOWN = 6
 	PDU_ERROR_DUPANNOUNCE     = 7
+
+	AFI_IPv4 = uint8(0)
+	AFI_IPv6 = uint8(1)
 
 	TYPE_UNKNOWN = iota
 	TYPE_PLAIN
@@ -84,6 +89,8 @@ func TypeToString(t uint8) string {
 		return "Router Key"
 	case PDU_ID_ERROR_REPORT:
 		return "Error Report"
+	case PDU_ID_ASPA:
+		return "ASPA PDU"
 	default:
 		return fmt.Sprintf("Unknown type %d", t)
 	}
@@ -372,7 +379,7 @@ func (pdu *PDUEndOfData) Write(wr io.Writer) {
 	if pdu.Version == PROTOCOL_VERSION_0 {
 		binary.Write(wr, binary.BigEndian, uint32(12))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
-	} else if pdu.Version == PROTOCOL_VERSION_1 {
+	} else if pdu.Version == PROTOCOL_VERSION_1 || pdu.Version == PROTOCOL_VERSION_2 {
 		binary.Write(wr, binary.BigEndian, uint32(24))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
 		binary.Write(wr, binary.BigEndian, pdu.RefreshInterval)
@@ -506,6 +513,51 @@ func (pdu *PDUErrorReport) Write(wr io.Writer) {
 		binary.Write(wr, binary.BigEndian, []byte(pdu.ErrorMsg))
 		binary.Write(wr, binary.BigEndian, uint8(0))
 		// Some clients require null-terminated strings
+	}
+}
+
+type PDUASPA struct {
+	Version           uint8
+	Flags             uint8
+	AFIFlags          uint8
+	ProviderASCount   uint16
+	CustomerASNumber  uint32
+	ProviderASNumbers []uint32
+}
+
+func (pdu *PDUASPA) String() string {
+	return fmt.Sprintf("PDU ASPA v%d TODO", pdu.Version) // TODO
+}
+
+func (pdu *PDUASPA) Bytes() []byte {
+	b := bytes.NewBuffer([]byte{})
+	pdu.Write(b)
+	return b.Bytes()
+}
+
+func (pdu *PDUASPA) SetVersion(version uint8) {
+	pdu.Version = version
+}
+
+func (pdu *PDUASPA) GetVersion() uint8 {
+	return pdu.Version
+}
+
+func (pdu *PDUASPA) GetType() uint8 {
+	return PDU_ID_ASPA
+}
+
+func (pdu *PDUASPA) Write(wr io.Writer) {
+	binary.Write(wr, binary.BigEndian, uint8(pdu.Version))
+	binary.Write(wr, binary.BigEndian, uint8(PDU_ID_ASPA))
+	binary.Write(wr, binary.BigEndian, uint16(0))
+	binary.Write(wr, binary.BigEndian, uint32(16+(len(pdu.ProviderASNumbers)*4)))
+	binary.Write(wr, binary.BigEndian, uint8(pdu.Flags))
+	binary.Write(wr, binary.BigEndian, uint8(pdu.AFIFlags))
+	binary.Write(wr, binary.BigEndian, uint16(pdu.ProviderASCount))
+	binary.Write(wr, binary.BigEndian, uint32(pdu.CustomerASNumber))
+	for _, pasn := range pdu.ProviderASNumbers {
+		binary.Write(wr, binary.BigEndian, uint32(pasn))
 	}
 }
 
@@ -693,6 +745,35 @@ func Decode(rdr io.Reader) (PDU, error) {
 			ErrorCode: sessionId,
 			PDUCopy:   errPdu,
 			ErrorMsg:  errMsg,
+		}, nil
+	case PDU_ID_ASPA:
+		if len(toread) < 8 {
+			return nil, fmt.Errorf("wrong length for ASPA PDU: %d < 16", len(toread))
+		}
+
+		aspaFlag := uint8(toread[0])
+		aspaAFIFlag := uint8(toread[1])
+		PASCount := binary.BigEndian.Uint16(toread[2:4])
+		CASN := binary.BigEndian.Uint32(toread[4:8])
+
+		PASNs := make([]uint32, 0)
+		rbuf := bytes.NewReader(toread[8:])
+		for i := 0; i < int(PASCount); i++ {
+			var asn uint32
+			err := binary.Read(rbuf, binary.BigEndian, &asn)
+			if err != nil {
+				return nil, err
+			}
+			PASNs = append(PASNs, asn)
+		}
+
+		return &PDUASPA{
+			Version:           pver,
+			Flags:             aspaFlag,
+			AFIFlags:          aspaAFIFlag,
+			ProviderASCount:   PASCount,
+			CustomerASNumber:  CASN,
+			ProviderASNumbers: PASNs,
 		}, nil
 	default:
 		return nil, errors.New("could not decode packet")

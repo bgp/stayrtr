@@ -119,7 +119,21 @@ func (c *ClientSession) StartRW(rd io.Reader, wr io.Writer) error {
 		if c.version == PROTOCOL_VERSION_1 && dec.GetVersion() == PROTOCOL_VERSION_0 {
 			if c.log != nil {
 				c.log.Infof("Downgrading to version 0")
+			}
+			c.version = PROTOCOL_VERSION_0
+		}
+		if c.version == PROTOCOL_VERSION_2 {
+			downgraded := false
+			switch dec.GetVersion() {
+			case PROTOCOL_VERSION_0:
 				c.version = PROTOCOL_VERSION_0
+				downgraded = true
+			case PROTOCOL_VERSION_1:
+				c.version = PROTOCOL_VERSION_1
+				downgraded = true
+			}
+			if c.log != nil && downgraded {
+				c.log.Infof("Downgrading to version %d", c.version)
 			}
 		}
 

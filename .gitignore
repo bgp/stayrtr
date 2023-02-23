@@ -39,3 +39,5 @@ test/scenario_test/nosetest*.xml
 # IDE workspace
 .idea
 .vscode
+
+output.json
