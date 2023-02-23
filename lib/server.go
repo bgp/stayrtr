@@ -941,16 +941,16 @@ type BgpsecKey struct {
 	Flags  uint8
 }
 
-func (bsk *BgpsecKey) Type() string {
+func (brk *BgpsecKey) Type() string {
 	return "BGPsecKey"
 }
 
-func (bsk *BgpsecKey) String() string {
-	return fmt.Sprintf("BGPsec AS%v -> %x, Flags: %v", bsk.ASN, bsk.Ski, bsk.Flags)
+func (brk *BgpsecKey) String() string {
+	return fmt.Sprintf("BGPsec AS%v -> %x, Flags: %v", brk.ASN, brk.Ski, brk.Flags)
 }
 
-func (bsk *BgpsecKey) HashKey() string {
-	return fmt.Sprintf("%v-%x-%x", bsk.ASN, bsk.Ski, bsk.Pubkey)
+func (brk *BgpsecKey) HashKey() string {
+	return fmt.Sprintf("%v-%x-%x", brk.ASN, brk.Ski, brk.Pubkey)
 }
 
 func (r1 *BgpsecKey) Equals(r2 SendableData) bool {
@@ -962,71 +962,71 @@ func (r1 *BgpsecKey) Equals(r2 SendableData) bool {
 	return r1.ASN == r2True.ASN && bytes.Equal(r1.Pubkey, r2True.Pubkey) && bytes.Equal(r1.Ski, r2True.Ski)
 }
 
-func (bsk *BgpsecKey) Copy() SendableData {
+func (brk *BgpsecKey) Copy() SendableData {
 	cop := BgpsecKey{
-		ASN:    bsk.ASN,
-		Pubkey: make([]byte, len(bsk.Pubkey)),
-		Ski:    make([]byte, len(bsk.Ski)),
-		Flags:  bsk.Flags,
+		ASN:    brk.ASN,
+		Pubkey: make([]byte, len(brk.Pubkey)),
+		Ski:    make([]byte, len(brk.Ski)),
+		Flags:  brk.Flags,
 	}
-	copy(cop.Pubkey, bsk.Pubkey)
-	copy(cop.Ski, bsk.Ski)
+	copy(cop.Pubkey, brk.Pubkey)
+	copy(cop.Ski, brk.Ski)
 	return &cop
 }
 
-func (bsk *BgpsecKey) SetFlag(f uint8) {
-	bsk.Flags = f
+func (brk *BgpsecKey) SetFlag(f uint8) {
+	brk.Flags = f
 }
 
-func (bsk *BgpsecKey) GetFlag() uint8 {
-	return bsk.Flags
+func (brk *BgpsecKey) GetFlag() uint8 {
+	return brk.Flags
 }
 
-type ASPARecord struct {
+type VAP struct {
 	Flags       uint8
 	AFI         uint8
 	CustomerASN uint32
 	Providers   []uint32
 }
 
-func (ASPAr *ASPARecord) Type() string {
+func (vap *VAP) Type() string {
 	return "ASPA"
 }
 
-func (ASPAr *ASPARecord) String() string {
-	return fmt.Sprintf("ASPA AS%v -> AFI %d, Providers: %v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+func (vap *VAP) String() string {
+	return fmt.Sprintf("ASPA AS%v -> AFI %d, Providers: %v", vap.CustomerASN, vap.AFI, vap.Providers)
 }
 
-func (ASPAr *ASPARecord) HashKey() string {
-	return fmt.Sprintf("%v-%x-%v", ASPAr.CustomerASN, ASPAr.AFI, ASPAr.Providers)
+func (vap *VAP) HashKey() string {
+	return fmt.Sprintf("%v-%x-%v", vap.CustomerASN, vap.AFI, vap.Providers)
 }
 
-func (r1 *ASPARecord) Equals(r2 SendableData) bool {
+func (r1 *VAP) Equals(r2 SendableData) bool {
 	if r1.Type() != r2.Type() {
 		return false
 	}
 
-	r2True := r2.(*ASPARecord)
+	r2True := r2.(*VAP)
 	return r1.CustomerASN == r2True.CustomerASN && fmt.Sprint(r1.Providers) == fmt.Sprint(r2True.Providers) /*This could be made faster*/
 }
 
-func (ASPAr *ASPARecord) Copy() SendableData {
-	cop := ASPARecord{
-		CustomerASN: ASPAr.CustomerASN,
-		AFI:         ASPAr.AFI,
-		Flags:       ASPAr.Flags,
+func (vap *VAP) Copy() SendableData {
+	cop := VAP{
+		CustomerASN: vap.CustomerASN,
+		AFI:         vap.AFI,
+		Flags:       vap.Flags,
 		Providers:   make([]uint32, 0),
 	}
-	cop.Providers = append(cop.Providers, ASPAr.Providers...)
+	cop.Providers = append(cop.Providers, vap.Providers...)
 	return &cop
 }
 
-func (ASPAr *ASPARecord) SetFlag(f uint8) {
-	ASPAr.Flags = f
+func (vap *VAP) SetFlag(f uint8) {
+	vap.Flags = f
 }
 
-func (ASPAr *ASPARecord) GetFlag() uint8 {
-	return ASPAr.Flags
+func (vap *VAP) GetFlag() uint8 {
+	return vap.Flags
 }
 
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
@@ -1158,7 +1158,7 @@ func (c *Client) SendData(sd SendableData) {
 			SubjectPublicKeyInfo: t.Pubkey,
 		}
 		c.SendPDU(pdu)
-	case *ASPARecord:
+	case *VAP:
 		if c.version < 2 || c.dontSendASPA {
 			return
 		}
