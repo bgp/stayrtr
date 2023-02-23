@@ -331,6 +331,17 @@ func (s *state) updateFromNewState() error {
 	if vrpsjson == nil {
 		return nil
 	}
+	bgpsecjson := s.lastdata.BgpSecKeys
+	if bgpsecjson == nil {
+		bgpsecjson = make([]prefixfile.BgpSecKeyJson, 0)
+	}
+	aspajson := s.lastdata.ASPA
+	if aspajson == nil {
+		aspajson = &prefixfile.ProviderAuthorizationsJson{
+			IPv4: make([]prefixfile.ASPAJson, 0),
+			IPv6: make([]prefixfile.ASPAJson, 0),
+		}
+	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.lastdata.Metadata.GeneratedUnix != nil {
@@ -348,16 +359,13 @@ func (s *state) updateFromNewState() error {
 	}
 
 	if s.slurm != nil {
-		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
-		asserted := s.slurm.AssertVRPs()
-		log.Infof("Slurm filtering: %v kept, %v removed, %v asserted", len(kept), len(removed), len(asserted))
-		vrpsjson = append(kept, asserted...)
+		vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA)
+	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
 
 	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
-	return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA, countv4, countv6)
+	return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 }
 
 // Update the state based on the currently loaded files
@@ -368,8 +376,22 @@ func (s *state) reloadFromCurrentState() error {
 	if vrpsjson == nil {
 		return nil
 	}
+	bgpsecjson := s.lastdata.BgpSecKeys
+	if bgpsecjson == nil {
+		bgpsecjson = make([]prefixfile.BgpSecKeyJson, 0)
+	}
+	aspajson := s.lastdata.ASPA
+	if aspajson == nil {
+		aspajson = &prefixfile.ProviderAuthorizationsJson{
+			IPv4: make([]prefixfile.ASPAJson, 0),
+			IPv6: make([]prefixfile.ASPAJson, 0),
+		}
+	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
+	if s.lastdata.Metadata.GeneratedUnix != nil {
+		buildtime, err = time.Unix(int64(*s.lastdata.Metadata.GeneratedUnix), 0), nil
+	}
 	if s.checktime {
 		if err != nil {
 			return err
@@ -382,16 +404,13 @@ func (s *state) reloadFromCurrentState() error {
 	}
 
 	if s.slurm != nil {
-		kept, removed := s.slurm.FilterOnVRPs(vrpsjson)
-		asserted := s.slurm.AssertVRPs()
-		log.Infof("Slurm filtering: %v kept, %v removed, %v asserted", len(kept), len(removed), len(asserted))
-		vrpsjson = append(kept, asserted...)
+		vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA)
+	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
 	if s.server.CountVRPs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
-		return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, s.lastdata.BgpSecKeys, s.lastdata.ASPA, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 	}
 	return nil
 }
