@@ -1,6 +1,9 @@
 package prefixfile
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"testing"
 
@@ -213,4 +216,80 @@ func TestFilterOnVAPs(t *testing.T) {
 	assert.Len(t, added, 1)
 	assert.Len(t, removed, 1)
 	assert.Equal(t, uint32(65001), removed[0].CustomerAsid)
+}
+
+func TestSlurmEndToEnd(t *testing.T) {
+	slurmfd, err := os.Open("slurm.json")
+	if err != nil {
+		panic(err)
+	}
+	config, err := DecodeJSONSlurm(slurmfd)
+	if err != nil {
+		t.Errorf("Unable to decode json: %v", err)
+	}
+
+	rpkifd, err := os.Open("test.rpki.json")
+	if err != nil {
+		panic(err)
+	}
+	rpkidata, err := io.ReadAll(rpkifd)
+	if err != nil {
+		panic(err)
+	}
+	vrplist, err := decodeJSON(rpkidata)
+	if err != nil {
+		panic(err)
+	}
+
+	finalVRP, _, finalASPA6, finalBgpsec :=
+		config.FilterAssert(vrplist.Data, vrplist.ASPA.IPv4, vrplist.ASPA.IPv6, vrplist.BgpSecKeys, nil)
+
+	foundAssertVRP := false
+	for _, vrps := range finalVRP {
+		if vrps.Prefix == "192.0.2.0/24" {
+			t.Fatalf("Found filtered VRP")
+		}
+
+		if vrps.Prefix == "198.51.100.0/24" {
+			foundAssertVRP = true
+		}
+	}
+	if !foundAssertVRP {
+		t.Fatalf("Did not find asserted VRP")
+	}
+
+	foundAssertVAP := false
+	for _, vaps := range finalASPA6 {
+		if vaps.CustomerAsid == 64499 {
+			foundAssertVAP = true
+		}
+		if vaps.CustomerAsid == 64496 {
+			t.Fatalf("Found filtered ASPA")
+		}
+	}
+	if !foundAssertVAP {
+		t.Fatalf("Did not find asserted VAP")
+	}
+
+	foundAssertBRK := false
+	for _, brks := range finalBgpsec {
+		if brks.Ski == "510f485d29a29db7b515f9c478f8ed3cb7aa7d23" {
+			t.FailNow()
+		}
+		if brks.Ski == "3506176743e02f67dd46c73119d5436be7e10106" {
+			foundAssertBRK = true
+		}
+	}
+	if !foundAssertBRK {
+		t.Fatalf("Did not find asserted BR")
+	}
+}
+
+func decodeJSON(data []byte) (*VRPList, error) {
+	buf := bytes.NewBuffer(data)
+	dec := json.NewDecoder(buf)
+
+	var vrplistjson VRPList
+	err := dec.Decode(&vrplistjson)
+	return &vrplistjson, err
 }

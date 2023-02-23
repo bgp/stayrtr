@@ -43,6 +43,46 @@
 		{ "asn": 33764, "prefix": "2001:42d0:1500::/40", "maxLength": 40, "ta": "afrinic", "expires": 1827518625 },
 		{ "asn": 27808, "prefix": "2800:38::/32", "maxLength": 128, "ta": "lacnic", "expires": 1827677646 },
 		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 48, "ta": "lacnic", "expires": 1827665407 },
-		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 32, "ta": "lacnic", "expires": 1827665407 }
-	]
+		{ "asn": 16814, "prefix": "2800:40::/32", "maxLength": 32, "ta": "lacnic", "expires": 1827665407 },
+		{ "asn": 1, "prefix": "192.0.2.0/24", "maxLength": 24, "ta": "lmao", "expires": 1827665407 }
+	],
+	"bgpsec_keys": [
+	  {
+		"asn": 15562,
+		"pubkey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEgFcjQ/g//LAQerAH2Mpp+GucoDAGBbhIqD33wNPsXxnAGb+mtZ7XQrVO9DQ6UlAShtig5+QfEKpTtFgiqfiAFQ==",
+		"ski": "5d4250e2d81d4448d8a29efce91d29ff075ec9e2"
+	  },
+	  {
+		"asn": 64496,
+		"pubkey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhv5HEBGixUjKJTlenvcD1Axyi07rFdVY1KhN4vMPYy5y0Mx6zfaiEqJN27jK/l61xC36Vsaezd7eXAsZ1AEEsQ==",
+		"ski": "510f485d29a29db7b515f9c478f8ed3cb7aa7d23"
+	  },
+	  {
+		"asn": 15562,
+		"pubkey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4FxJr0n2bux1uX1Evl+QWwZYvIadPjLuFX2mxqKuAGUhKnr7VLLDgrE++l9p5eH2kWTNVAN22FUU3db/RKpE2w==",
+		"ski": "be889b55d0b737397d75c49f485b858fa98ad11f"
+	  }
+	],
+	"provider_authorizations": {
+	  "ipv4": [
+		{
+		  "customer_asid": 15562,
+		  "providers": [2914,8283,51088,206238]
+		},
+		{
+		  "customer_asid": 64496,
+		  "providers": [1299,6939,7480,32097,50058,61138]
+		}
+	  ],
+	  "ipv6": [
+		{
+		  "customer_asid": 64496,
+		  "providers": [1299,6939,7480,32097,50058,61138]
+		},
+		{
+		  "customer_asid": 15562,
+		  "providers": [2914,8283,51088,206238]
+		}
+	  ]
+	}
 }
