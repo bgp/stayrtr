@@ -77,7 +77,7 @@ var (
 
 	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale (disable by passing -checktime=false)")
 
-	CacheBin = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
+	CacheBin = flag.String("cache", "https://rpki.cloudflare.com/rpki.json", "URL of the cached JSON data")
 
 	Etag            = flag.Bool("etag", true, "Control usage of Etag header (disable with -etag=false)")
 	LastModified    = flag.Bool("last.modified", true, "Control usage of Last-Modified header (disable with -last.modified=false)")
@@ -333,6 +333,9 @@ func (s *state) updateFromNewState() error {
 	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
+	if s.lastdata.Metadata.GeneratedUnix != nil {
+		buildtime, err = time.Unix(int64(*s.lastdata.Metadata.GeneratedUnix), 0), nil
+	}
 	if s.checktime {
 		if err != nil {
 			return err
