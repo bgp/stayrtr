@@ -536,6 +536,7 @@ func (s *Server) Start(bind string) error {
 }
 
 var DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+var DisableASPA = flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
 
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	client := ClientFromConn(tcpconn, s, s)
@@ -546,6 +547,9 @@ func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	client.SetIntervals(s.pduRefreshInterval, s.pduRetryInterval, s.pduExpireInterval)
 	if *DisableBGPSec {
 		client.DisableBGPsec()
+	}
+	if *DisableASPA {
+		client.DisableASPA()
 	}
 	go client.Start()
 	return nil
@@ -733,6 +737,7 @@ type Client struct {
 	expireInterval  uint32
 
 	dontSendBGPsecKeys bool
+	dontSendASPA       bool
 
 	log Logger
 }
@@ -755,6 +760,10 @@ func (c *Client) GetVersion() uint8 {
 
 func (c *Client) DisableBGPsec() {
 	c.dontSendBGPsecKeys = true
+}
+
+func (c *Client) DisableASPA() {
+	c.dontSendASPA = true
 }
 
 func (c *Client) SetIntervals(refreshInterval uint32, retryInterval uint32, expireInterval uint32) {
@@ -1150,7 +1159,7 @@ func (c *Client) SendData(sd SendableData) {
 		}
 		c.SendPDU(pdu)
 	case *ASPARecord:
-		if c.version < 2 || c.dontSendBGPsecKeys {
+		if c.version < 2 || c.dontSendASPA {
 			return
 		}
 
