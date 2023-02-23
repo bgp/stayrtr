@@ -1,4 +1,4 @@
-// rfc8416
+// rfc8416 and draft-sidrops-aspa-slurm
 
 package prefixfile
 
@@ -10,25 +10,26 @@ import (
 
 type SlurmPrefixFilter struct {
 	Prefix  string
-	ASN     interface{}
+	ASN     *uint32 `json:"asn,omitempty"`
 	Comment string
+}
+
+type SlurmBGPsecFilter struct {
+	ASN     uint32 `json:"asn"`
+	Comment string `json:"comment"`
+}
+
+type SlurmASPAFilter struct {
+	Afi          string `json:"afi"`
+	Comment      string `json:"comment"`
+	CustomerASid uint32 `json:"customer_asid"`
 }
 
 func (pf *SlurmPrefixFilter) GetASN() (uint32, bool) {
 	if pf.ASN == nil {
 		return 0, true
 	} else {
-		switch asn := pf.ASN.(type) {
-		case json.Number:
-			c, _ := asn.Int64()
-			return uint32(c), false
-		case int:
-			return uint32(asn), false
-		case uint32:
-			return asn, false
-		default:
-			return 0, true
-		}
+		return *pf.ASN, false
 	}
 }
 
@@ -39,6 +40,8 @@ func (pf *SlurmPrefixFilter) GetPrefix() *net.IPNet {
 
 type SlurmValidationOutputFilters struct {
 	PrefixFilters []SlurmPrefixFilter
+	BgpsecFilters []SlurmBGPsecFilter
+	AspaFilters   []SlurmASPAFilter
 }
 
 type SlurmPrefixAssertion struct {
@@ -46,6 +49,20 @@ type SlurmPrefixAssertion struct {
 	ASN             uint32
 	MaxPrefixLength int
 	Comment         string
+}
+
+type SlurmBGPsecAssertion struct {
+	SKI             []byte `json:"SKI"`
+	ASN             uint32 `json:"asn"`
+	Comment         string `json:"comment"`
+	RouterPublicKey []byte `json:"routerPublicKey"`
+}
+
+type SlurmASPAAssertion struct {
+	Afi           string   `json:"afi"`
+	Comment       string   `json:"comment"`
+	CustomerASNid uint32   `json:"customer_asid"`
+	ProviderSet   []uint32 `json:"provider_set"`
 }
 
 func (pa *SlurmPrefixAssertion) GetASN() uint32 {
@@ -63,6 +80,8 @@ func (pa *SlurmPrefixAssertion) GetMaxLen() int {
 
 type SlurmLocallyAddedAssertions struct {
 	PrefixAssertions []SlurmPrefixAssertion
+	BgpsecAssertions []SlurmBGPsecAssertion
+	AspaAssertions   []SlurmASPAAssertion
 }
 
 type SlurmConfig struct {

@@ -53,17 +53,18 @@ func TestFilterOnVRPs(t *testing.T) {
 		},
 	}
 
+	asA, asB := uint32(65001), uint32(65002)
 	slurm := SlurmValidationOutputFilters{
 		PrefixFilters: []SlurmPrefixFilter{
 			{
 				Prefix: "10.0.0.0/8",
 			},
 			{
-				ASN:    uint32(65001),
+				ASN:    &asA,
 				Prefix: "192.168.0.0/24",
 			},
 			{
-				ASN: uint32(65002),
+				ASN: &asB,
 			},
 		},
 	}
