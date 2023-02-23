@@ -57,12 +57,12 @@ $ go build cmd/stayrtr/stayrtr.go
 
 If you do not want to use Docker, please go to the next section.
 
-If you have **Docker**, you can start StayRTR with `docker run -ti -p 8082:8082 bgp/stayrtr` someday when it has been built.
+If you have **Docker**, you can start StayRTR with `docker run -ti -p 8082:8082 rpki/stayrtr` someday when it has been built.
 
 You can now use any CLI attributes as long as they are after the image name:
 
 ```bash
-$ docker run -ti -p 8083:8083 bgp/stayrtr -bind :8083
+$ docker run -ti -p 8083:8083 rpki/stayrtr -bind :8083
 ```
 
 If you want to build your own image of StayRTR:
@@ -74,12 +74,12 @@ $ docker run -ti mystayrtr -h
 
 It will download the code from GitHub and compile it with Go and also generate an ECDSA key for SSH.
 
-Please note: if you plan to use SSH with the default container (`bgp/stayrtr`),
+Please note: if you plan to use SSH with the default container (`rpki/stayrtr`),
 replace the key `private.pem` since it is a testing key that has been published.
 An example is given below:
 
 ```bash
-$ docker run -ti -v $PWD/mynewkey.pem:/private.pem bgp/stayrtr -ssh.bind :8083
+$ docker run -ti -v $PWD/mynewkey.pem:/private.pem rpki/stayrtr -ssh.bind :8083
 ```
 
 ## Install it
