@@ -807,6 +807,8 @@ func (c *Client) passSimpleHandler(pdu PDU) {
 }
 
 func (c *Client) sendLoop() {
+	defer c.tcpconn.Close()
+
 	for c.connected {
 		select {
 		case pdu := <-c.transmits:
@@ -1196,6 +1198,4 @@ func (c *Client) Disconnect() {
 	case c.quit <- true:
 	default:
 	}
-
-	c.tcpconn.Close()
 }
