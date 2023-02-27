@@ -1033,7 +1033,7 @@ func (vap *VAP) GetFlag() uint8 {
 
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
 	sort.Slice(data, func(i, j int) bool {
-		if data[i].Type() == "VRP" && data[i].Type() != "VRP" {
+		if data[i].Type() == "VRP" && data[j].Type() != "VRP" {
 			return false // Always send VRPs first
 		}
 		if data[i].Type() == "VRP" && data[j].Type() == "VRP" {
