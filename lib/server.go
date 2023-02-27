@@ -56,6 +56,7 @@ type SendableDataManager interface {
 type DefaultRTREventHandler struct {
 	sdManager SendableDataManager
 	Log       Logger
+	SortLock  *sync.RWMutex
 }
 
 func (e *DefaultRTREventHandler) SetSDManager(m SendableDataManager) {
@@ -81,7 +82,7 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, vrps, e.SortLock)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
 			}
@@ -116,7 +117,7 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, vrps, e.SortLock)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
@@ -1031,12 +1032,12 @@ func (vap *VAP) GetFlag() uint8 {
 	return vap.Flags
 }
 
-func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
+func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData, sortLock *sync.RWMutex) {
+	sortLock.Lock()
 	sort.Slice(data, func(i, j int) bool {
-		if data[i].Type() == "VRP" && data[j].Type() != "VRP" {
-			return false // Always send VRPs first
-		}
-		if data[i].Type() == "VRP" && data[j].Type() == "VRP" {
+		VRPi, oki := data[i].(*VRP)
+		VRPj, okj := data[j].(*VRP)
+		if oki && okj {
 			// Sort VRPs as per draft-ietf-sidrops-8210bis-10
 			/*
 				11. ROA PDU Race Minimization
@@ -1056,7 +1057,6 @@ func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableD
 					P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
 					sub-prefix P1 before the covering prefix P0.
 			*/
-			VRPi, VRPj := data[i].(*VRP), data[j].(*VRP)
 			CIDRSizei, _ := VRPi.Prefix.Mask.Size()
 			CIDRSizej, _ := VRPj.Prefix.Mask.Size()
 			if CIDRSizei == CIDRSizej {
@@ -1070,14 +1070,17 @@ func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableD
 		}
 		return true
 	})
+	sortLock.Unlock()
 
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
+	sortLock.RLock()
 	for _, data := range data {
 		c.SendData(data.Copy())
 	}
+	sortLock.RUnlock()
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
 		SerialNumber: serialNumber,

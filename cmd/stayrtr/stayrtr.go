@@ -708,7 +708,8 @@ func run() error {
 	log.SetLevel(lvl)
 
 	deh := &rtr.DefaultRTREventHandler{
-		Log: log.StandardLogger(),
+		Log:      log.StandardLogger(),
+		SortLock: &sync.RWMutex{},
 	}
 
 	sc := rtr.ServerConfiguration{
