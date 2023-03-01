@@ -261,6 +261,38 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		vrplist = append(vrplist, vrp)
 	}
 
+	sort.Slice(vrplist, func(i, j int) bool {
+		// Sort VRPs as per draft-ietf-sidrops-8210bis-10
+		/*
+			11. ROA PDU Race Minimization
+				When a cache is sending ROA (IPv4 or IPv6) PDUs to a router, especially an initial
+				full load in response to a Reset Query PDU, two undesirable race conditions are possible:
+
+			Break Before Make:
+				For some prefix P, an AS may announce two (or more) ROAs because they are in the
+				process of changing what provider AS is announcing P. This is a case of "make before break."
+				If a cache is feeding a router and sends the one not yet in service a significant time
+				before sending the one currently in service, then BGP data could be marked invalid during
+				the interval. To minimize that interval, the cache SHOULD announce all ROAs for the same
+				prefix as close to sequentially as possible.
+			Shorter Prefix First:
+				If an AS has issued a ROA for P0, and another AS (likely their customer) has issued a ROA
+				for P1 which is a sub-prefix of P0, a router which receives the ROA for P0 before that for
+				P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
+				sub-prefix P1 before the covering prefix P0.
+		*/
+		CIDRSizei, _ := vrplist[i].Prefix.Mask.Size()
+		CIDRSizej, _ := vrplist[j].Prefix.Mask.Size()
+		if CIDRSizei == CIDRSizej {
+			if vrplist[i].MaxLen != vrplist[j].MaxLen {
+				return vrplist[i].MaxLen > vrplist[j].MaxLen
+			}
+			return bytes.Compare(vrplist[i].Prefix.IP, vrplist[j].Prefix.IP) < 1
+		} else {
+			return CIDRSizei > CIDRSizej
+		}
+	})
+
 	for _, v := range brklistjson {
 		if v.Expires != nil {
 			// Prevent stale VRPs from being considered
@@ -299,7 +331,7 @@ func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VA
 		}
 
 		// Ensure that these are sorted, otherwise they
-		// don't has right.
+		// don't hash right.
 		sort.Slice(v.Providers, func(i, j int) bool {
 			return v.Providers[i] < v.Providers[j]
 		})
@@ -708,8 +740,7 @@ func run() error {
 	log.SetLevel(lvl)
 
 	deh := &rtr.DefaultRTREventHandler{
-		Log:      log.StandardLogger(),
-		SortLock: &sync.RWMutex{},
+		Log: log.StandardLogger(),
 	}
 
 	sc := rtr.ServerConfiguration{

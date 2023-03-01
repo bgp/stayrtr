@@ -8,7 +8,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"sort"
 	"sync"
 	"time"
 
@@ -56,7 +55,6 @@ type SendableDataManager interface {
 type DefaultRTREventHandler struct {
 	sdManager SendableDataManager
 	Log       Logger
-	SortLock  *sync.RWMutex
 }
 
 func (e *DefaultRTREventHandler) SetSDManager(m SendableDataManager) {
@@ -82,7 +80,7 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps, e.SortLock)
+			c.SendSDs(sessionId, serial, vrps)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
 			}
@@ -117,7 +115,7 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps, e.SortLock)
+			c.SendSDs(sessionId, serial, vrps)
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
@@ -1032,55 +1030,14 @@ func (vap *VAP) GetFlag() uint8 {
 	return vap.Flags
 }
 
-func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData, sortLock *sync.RWMutex) {
-	sortLock.Lock()
-	sort.Slice(data, func(i, j int) bool {
-		VRPi, oki := data[i].(*VRP)
-		VRPj, okj := data[j].(*VRP)
-		if oki && okj {
-			// Sort VRPs as per draft-ietf-sidrops-8210bis-10
-			/*
-				11. ROA PDU Race Minimization
-					When a cache is sending ROA (IPv4 or IPv6) PDUs to a router, especially an initial
-					full load in response to a Reset Query PDU, two undesirable race conditions are possible:
-
-				Break Before Make:
-					For some prefix P, an AS may announce two (or more) ROAs because they are in the
-					process of changing what provider AS is announcing P. This is a case of "make before break."
-					If a cache is feeding a router and sends the one not yet in service a significant time
-					before sending the one currently in service, then BGP data could be marked invalid during
-					the interval. To minimize that interval, the cache SHOULD announce all ROAs for the same
-					prefix as close to sequentially as possible.
-				Shorter Prefix First:
-					If an AS has issued a ROA for P0, and another AS (likely their customer) has issued a ROA
-					for P1 which is a sub-prefix of P0, a router which receives the ROA for P0 before that for
-					P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
-					sub-prefix P1 before the covering prefix P0.
-			*/
-			CIDRSizei, _ := VRPi.Prefix.Mask.Size()
-			CIDRSizej, _ := VRPj.Prefix.Mask.Size()
-			if CIDRSizei == CIDRSizej {
-				if VRPi.MaxLen != VRPj.MaxLen {
-					return VRPi.MaxLen > VRPj.MaxLen
-				}
-				return bytes.Compare(VRPi.Prefix.IP, VRPj.Prefix.IP) < 1
-			} else {
-				return CIDRSizei > CIDRSizej
-			}
-		}
-		return true
-	})
-	sortLock.Unlock()
-
+func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
-	sortLock.RLock()
 	for _, data := range data {
 		c.SendData(data.Copy())
 	}
-	sortLock.RUnlock()
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
 		SerialNumber: serialNumber,
