@@ -103,11 +103,6 @@ func TestProcessData(t *testing.T) {
 	got, _, _, count, v4count, v6count := processData(stuff, nil, nil)
 	want := []rtr.VRP{
 		{
-			Prefix: mustParseIPNet("192.168.0.0/24"),
-			MaxLen: 24,
-			ASN:    123,
-		},
-		{
 			Prefix: mustParseIPNet("2001:db8::/32"),
 			MaxLen: 33,
 			ASN:    123,
@@ -115,6 +110,11 @@ func TestProcessData(t *testing.T) {
 		{
 			Prefix: mustParseIPNet("192.168.1.0/24"),
 			MaxLen: 25,
+			ASN:    123,
+		},
+		{
+			Prefix: mustParseIPNet("192.168.0.0/24"),
+			MaxLen: 24,
 			ASN:    123,
 		},
 	}
