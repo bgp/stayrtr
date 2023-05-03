@@ -97,16 +97,23 @@ var (
 	NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_vrps",
-			Help: "Number of VRPs.",
+			Help: "Number of VRPs by source and status.",
 		},
 		[]string{"ip_version", "filtered", "path"},
 	)
 	NumberOfBRKs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_bgpsec",
-			Help: "Number of BGPsec keys.",
+			Help: "Number of BGPsec keys (deprecated)",
 		},
 		[]string{},
+	)
+	NumberOfObjects = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "rpki_objects",
+			Help: "Number of RPKI objects (in cache) by type",
+		},
+		[]string{"type"},
 	)
 	LastRefresh = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -152,8 +159,9 @@ var (
 )
 
 func initMetrics() {
-	prometheus.MustRegister(NumberOfVRPs)
+	prometheus.MustRegister(NumberOfObjects)
 	prometheus.MustRegister(NumberOfBRKs)
+	prometheus.MustRegister(NumberOfVRPs)
 	prometheus.MustRegister(LastChange)
 	prometheus.MustRegister(LastRefresh)
 	prometheus.MustRegister(RefreshStatusCode)
@@ -494,7 +502,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 				countv6_dup++
 			}
 		}
-		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin, len(brks))
+		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin, len(brks), len(vaps))
 	}
 
 	return nil
@@ -703,12 +711,17 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 				"_", -1))).Inc()
 }
 
-func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int) {
+func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int, aspaCount int) {
+	NumberOfObjects.WithLabelValues("vaps").Set(float64(aspaCount))
+	NumberOfObjects.WithLabelValues("bgpsec_pubkeys").Set(float64(brkCount))
+	NumberOfObjects.WithLabelValues("vrps").Set(float64(numIPv4 + numIPv6))
+	NumberOfObjects.WithLabelValues("effective_vrps").Set(float64(numIPv4filtered + numIPv6filtered))
+
+	NumberOfBRKs.WithLabelValues().Set(float64(brkCount))
 	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
 	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
 	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
 	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
-	NumberOfBRKs.WithLabelValues().Set(float64(brkCount))
 	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
