@@ -404,7 +404,7 @@ func (s *state) updateFromNewState() error {
 
 	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
 
-	log.Infof("New update (%v uniques, %v total prefixes).", len(vrps), count)
+	log.Infof("New update (%v uniques, %v total prefixes, %v vaps, %v router keys).", len(vrps), count, len(vaps), len(brks))
 	return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 }
 
