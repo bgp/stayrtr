@@ -101,13 +101,6 @@ var (
 		},
 		[]string{"ip_version", "filtered", "path"},
 	)
-	NumberOfBRKs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_bgpsec",
-			Help: "Number of BGPsec keys (deprecated)",
-		},
-		[]string{},
-	)
 	NumberOfObjects = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_objects",
@@ -160,7 +153,6 @@ var (
 
 func initMetrics() {
 	prometheus.MustRegister(NumberOfObjects)
-	prometheus.MustRegister(NumberOfBRKs)
 	prometheus.MustRegister(NumberOfVRPs)
 	prometheus.MustRegister(LastChange)
 	prometheus.MustRegister(LastRefresh)
@@ -717,7 +709,6 @@ func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered i
 	NumberOfObjects.WithLabelValues("vrps").Set(float64(numIPv4 + numIPv6))
 	NumberOfObjects.WithLabelValues("effective_vrps").Set(float64(numIPv4filtered + numIPv6filtered))
 
-	NumberOfBRKs.WithLabelValues().Set(float64(brkCount))
 	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
 	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
 	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
