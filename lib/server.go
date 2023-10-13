@@ -536,8 +536,16 @@ func (s *Server) Start(bind string) error {
 
 var DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
 var DisableASPA = flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
+var EnableNODELAY = flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
+	if !*EnableNODELAY {
+		tc, ok := tcpconn.(*net.TCPConn)
+		if ok {
+			tc.SetNoDelay(false)
+		}
+	}
+
 	client := ClientFromConn(tcpconn, s, s)
 	client.log = s.log
 	if s.enforceVersion {
