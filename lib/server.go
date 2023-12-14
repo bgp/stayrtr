@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -212,15 +213,15 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 	}
 }
 
-func ConvertSDListToMap(SDs []SendableData) map[string]SendableData {
-	sdMap := make(map[string]SendableData, len(SDs))
+func ConvertSDListToMap(SDs []SendableData) map[string]uint8 {
+	sdMap := make(map[string]uint8, len(SDs))
 	for _, v := range SDs {
-		sdMap[v.HashKey()] = v
+		sdMap[v.HashKey()] = v.GetFlag()
 	}
 	return sdMap
 }
 
-func ComputeDiff(newSDs, prevSDs []SendableData) (added, removed, unchanged []SendableData) {
+func ComputeDiff(newSDs, prevSDs []SendableData, populateUnchanged bool) (added, removed, unchanged []SendableData) {
 	added = make([]SendableData, 0)
 	removed = make([]SendableData, 0)
 	unchanged = make([]SendableData, 0)
@@ -242,7 +243,7 @@ func ComputeDiff(newSDs, prevSDs []SendableData) (added, removed, unchanged []Se
 			rcopy := vrp.Copy()
 			rcopy.SetFlag(FLAG_REMOVED)
 			removed = append(removed, rcopy)
-		} else {
+		} else if populateUnchanged {
 			rcopy := vrp.Copy()
 			unchanged = append(unchanged, rcopy)
 		}
@@ -273,7 +274,7 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 				rcopy := vrp.Copy()
 				newSDs = append(newSDs, rcopy)
 			} else {
-				if cvrp.GetFlag() == FLAG_REMOVED {
+				if cvrp == FLAG_REMOVED {
 					rcopy := vrp.Copy()
 					newSDs = append(newSDs, rcopy)
 				}
@@ -369,16 +370,16 @@ func (s *Server) AddData(vrps []SendableData) {
 	s.sdlock.RLock()
 
 	// a slight hack for now, until we have BGPsec/ASPA support
-	vrpsAsSD := make([]SendableData, 0)
+	vrpsAsSD := make([]SendableData, 0, len(vrps))
 	for _, v := range vrps {
 		vrpsAsSD = append(vrpsAsSD, v.Copy())
 	}
 
-	added, removed, unchanged := ComputeDiff(vrpsAsSD, s.sdCurrent)
+	added, removed, _ := ComputeDiff(vrpsAsSD, s.sdCurrent, false)
 	if s.log != nil && s.logverbose {
-		s.log.Debugf("Computed diff: added (%v), removed (%v), unchanged (%v)", added, removed, unchanged)
+		s.log.Debugf("Computed diff: added (%v), removed (%v)", added, removed)
 	} else if s.log != nil {
-		s.log.Debugf("Computed diff: added (%d), removed (%d), unchanged (%d)", len(added), len(removed), len(unchanged))
+		s.log.Debugf("Computed diff: added (%d), removed (%d)", len(added), len(removed))
 	}
 	curDiff := append(added, removed...)
 	s.sdlock.RUnlock()
@@ -670,9 +671,7 @@ func (s *Server) StartTLS(bind string, config *tls.Config) error {
 func (s *Server) GetClientList() []*Client {
 	s.clientlock.RLock()
 	list := make([]*Client, len(s.clients))
-	for i, c := range s.clients {
-		list[i] = c
-	}
+	copy(list, s.clients)
 	s.clientlock.RUnlock()
 	return list
 }
@@ -886,9 +885,9 @@ func (c *Client) Notify(sessionId uint16, serialNumber uint32) {
 }
 
 type VRP struct {
-	Prefix net.IPNet
-	MaxLen uint8
+	Prefix netip.Prefix
 	ASN    uint32
+	MaxLen uint8
 	Flags  uint8
 }
 
@@ -910,18 +909,13 @@ func (r1 *VRP) Equals(r2 SendableData) bool {
 	}
 
 	r2True := r2.(*VRP)
-	return r1.MaxLen == r2True.MaxLen && r1.ASN == r2True.ASN && r1.Prefix.IP.Equal(r2True.Prefix.IP) && bytes.Equal(r1.Prefix.Mask, r2True.Prefix.Mask)
+
+	return r1.MaxLen == r2True.MaxLen && r1.ASN == r2True.ASN && r1.Prefix == r2True.Prefix
 }
 
 func (r1 *VRP) Copy() SendableData {
-	newprefix := net.IPNet{
-		IP:   make([]byte, len(r1.Prefix.IP)),
-		Mask: make([]byte, len(r1.Prefix.Mask)),
-	}
-	copy(newprefix.IP, r1.Prefix.IP)
-	copy(newprefix.Mask, r1.Prefix.Mask)
 	return &VRP{
-		Prefix: newprefix,
+		Prefix: r1.Prefix,
 		ASN:    r1.ASN,
 		MaxLen: r1.MaxLen,
 		Flags:  r1.Flags}
@@ -1090,7 +1084,8 @@ func (c *Client) SendWrongVersionError() {
 func (c *Client) SendData(sd SendableData) {
 	switch t := sd.(type) {
 	case *VRP:
-		if t.Prefix.IP.To4() == nil && t.Prefix.IP.To16() != nil {
+
+		if t.Prefix.Addr().Is6() {
 			pdu := &PDUIPv6Prefix{
 				Flags:  t.Flags,
 				MaxLen: t.MaxLen,
@@ -1098,7 +1093,7 @@ func (c *Client) SendData(sd SendableData) {
 				Prefix: t.Prefix,
 			}
 			c.SendPDU(pdu)
-		} else if t.Prefix.IP.To4() != nil {
+		} else if t.Prefix.Addr().Is4() {
 			pdu := &PDUIPv4Prefix{
 				Flags:  t.Flags,
 				MaxLen: t.MaxLen,

@@ -2,7 +2,7 @@ package prefixfile
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -88,15 +88,18 @@ func (vrp *VRPJson) GetASN() uint32 {
 	return asn
 }
 
-func (vrp *VRPJson) GetPrefix2() (*net.IPNet, error) {
-	_, prefix, err := net.ParseCIDR(vrp.Prefix)
+func (vrp *VRPJson) GetPrefix2() (netip.Prefix, error) {
+	prefix, err := netip.ParsePrefix(vrp.Prefix)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode prefix: %v", vrp.Prefix)
+		return netip.Prefix{}, fmt.Errorf("could not decode prefix: %v", vrp.Prefix)
+	}
+	if !prefix.IsValid() {
+		return netip.Prefix{}, fmt.Errorf("prefix %s is invalid", prefix)
 	}
 	return prefix, nil
 }
 
-func (vrp *VRPJson) GetPrefix() *net.IPNet {
+func (vrp *VRPJson) GetPrefix() netip.Prefix {
 	prefix, _ := vrp.GetPrefix2()
 	return prefix
 }
@@ -107,12 +110,4 @@ func (vrp *VRPJson) GetMaxLen() int {
 
 func (vrp *VRPJson) String() string {
 	return fmt.Sprintf("%v/%v/%v", vrp.Prefix, vrp.Length, vrp.ASN)
-}
-
-func GetIPBroadcast(ipnet net.IPNet) net.IP {
-	br := make([]byte, len(ipnet.IP))
-	for i := 0; i < len(ipnet.IP); i++ {
-		br[i] = ipnet.IP[i] | (^ipnet.Mask[i])
-	}
-	return net.IP(br)
 }

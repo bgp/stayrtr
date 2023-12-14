@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
+	"net/netip"
 )
 
 type Logger interface {
@@ -249,16 +249,15 @@ func (pdu *PDUCacheResponse) Write(wr io.Writer) {
 }
 
 type PDUIPv4Prefix struct {
-	Version uint8
-	Prefix  net.IPNet
-	MaxLen  uint8
+	Prefix  netip.Prefix
 	ASN     uint32
+	Version uint8
+	MaxLen  uint8
 	Flags   uint8
 }
 
 func (pdu *PDUIPv4Prefix) String() string {
-	mask, _ := pdu.Prefix.Mask.Size()
-	return fmt.Sprintf("PDU IPv4 Prefix v%d %s/%d(->/%d), origin: AS%d, flags: %d", pdu.Version, pdu.Prefix.IP.String(), mask, pdu.MaxLen, pdu.ASN, pdu.Flags)
+	return fmt.Sprintf("PDU IPv4 Prefix v%d %s(->/%d), origin: AS%d, flags: %d", pdu.Version, pdu.Prefix.String(), pdu.MaxLen, pdu.ASN, pdu.Flags)
 }
 
 func (pdu *PDUIPv4Prefix) Bytes() []byte {
@@ -280,30 +279,28 @@ func (pdu *PDUIPv4Prefix) GetType() uint8 {
 }
 
 func (pdu *PDUIPv4Prefix) Write(wr io.Writer) {
-	mask, _ := pdu.Prefix.Mask.Size()
 	binary.Write(wr, binary.BigEndian, uint8(pdu.Version))
 	binary.Write(wr, binary.BigEndian, uint8(PDU_ID_IPV4_PREFIX))
 	binary.Write(wr, binary.BigEndian, uint16(0))
 	binary.Write(wr, binary.BigEndian, uint32(20))
 	binary.Write(wr, binary.BigEndian, pdu.Flags)
-	binary.Write(wr, binary.BigEndian, uint8(mask))
+	binary.Write(wr, binary.BigEndian, uint8(pdu.Prefix.Bits()))
 	binary.Write(wr, binary.BigEndian, pdu.MaxLen)
 	binary.Write(wr, binary.BigEndian, uint8(0))
-	binary.Write(wr, binary.BigEndian, pdu.Prefix.IP.To4())
+	binary.Write(wr, binary.BigEndian, pdu.Prefix.Addr().As4())
 	binary.Write(wr, binary.BigEndian, pdu.ASN)
 }
 
 type PDUIPv6Prefix struct {
-	Version uint8
-	Prefix  net.IPNet
-	MaxLen  uint8
+	Prefix  netip.Prefix
 	ASN     uint32
+	Version uint8
+	MaxLen  uint8
 	Flags   uint8
 }
 
 func (pdu *PDUIPv6Prefix) String() string {
-	mask, _ := pdu.Prefix.Mask.Size()
-	return fmt.Sprintf("PDU IPv6 Prefix v%d %s/%d(->/%d), origin: AS%d, flags: %d", pdu.Version, pdu.Prefix.IP.String(), mask, pdu.MaxLen, pdu.ASN, pdu.Flags)
+	return fmt.Sprintf("PDU IPv6 Prefix v%d %s(->/%d), origin: AS%d, flags: %d", pdu.Version, pdu.Prefix.String(), pdu.MaxLen, pdu.ASN, pdu.Flags)
 }
 
 func (pdu *PDUIPv6Prefix) Bytes() []byte {
@@ -325,16 +322,15 @@ func (pdu *PDUIPv6Prefix) GetType() uint8 {
 }
 
 func (pdu *PDUIPv6Prefix) Write(wr io.Writer) {
-	mask, _ := pdu.Prefix.Mask.Size()
 	binary.Write(wr, binary.BigEndian, uint8(pdu.Version))
 	binary.Write(wr, binary.BigEndian, uint8(PDU_ID_IPV6_PREFIX))
 	binary.Write(wr, binary.BigEndian, uint16(0))
 	binary.Write(wr, binary.BigEndian, uint32(32))
 	binary.Write(wr, binary.BigEndian, pdu.Flags)
-	binary.Write(wr, binary.BigEndian, uint8(mask))
+	binary.Write(wr, binary.BigEndian, uint8(pdu.Prefix.Bits()))
 	binary.Write(wr, binary.BigEndian, pdu.MaxLen)
 	binary.Write(wr, binary.BigEndian, uint8(0))
-	binary.Write(wr, binary.BigEndian, pdu.Prefix.IP.To16())
+	binary.Write(wr, binary.BigEndian, pdu.Prefix.Addr().As16())
 	binary.Write(wr, binary.BigEndian, pdu.ASN)
 }
 
@@ -645,9 +641,9 @@ func Decode(rdr io.Reader) (PDU, error) {
 		}
 		prefixLen := int(toread[1])
 		ip := toread[4:8]
-		ipnet := net.IPNet{
-			IP:   ip,
-			Mask: net.CIDRMask(prefixLen, 32),
+		addr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("ip slice length is not 4 or 16: %+v", addr)
 		}
 		asn := binary.BigEndian.Uint32(toread[8:])
 		return &PDUIPv4Prefix{
@@ -655,7 +651,7 @@ func Decode(rdr io.Reader) (PDU, error) {
 			Flags:   uint8(toread[0]),
 			MaxLen:  uint8(toread[2]),
 			ASN:     asn,
-			Prefix:  ipnet,
+			Prefix:  netip.PrefixFrom(addr, prefixLen),
 		}, nil
 	case PDU_ID_IPV6_PREFIX:
 		if len(toread) != 24 {
@@ -663,9 +659,9 @@ func Decode(rdr io.Reader) (PDU, error) {
 		}
 		prefixLen := int(toread[1])
 		ip := toread[4:20]
-		ipnet := net.IPNet{
-			IP:   ip,
-			Mask: net.CIDRMask(prefixLen, 128),
+		addr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("ip slice length is not 4 or 16: %+v", addr)
 		}
 		asn := binary.BigEndian.Uint32(toread[20:])
 		return &PDUIPv6Prefix{
@@ -673,7 +669,7 @@ func Decode(rdr io.Reader) (PDU, error) {
 			Flags:   uint8(toread[0]),
 			MaxLen:  uint8(toread[2]),
 			ASN:     asn,
-			Prefix:  ipnet,
+			Prefix:  netip.PrefixFrom(addr, prefixLen),
 		}, nil
 	case PDU_ID_END_OF_DATA:
 		if len(toread) != 4 && len(toread) != 16 {
