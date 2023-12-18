@@ -201,7 +201,7 @@ func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs, BGPsec Keys and ASPA records
 func processData(vrplistjson []prefixfile.VRPJson,
 	brklistjson []prefixfile.BgpSecKeyJson,
-	aspajson *prefixfile.ProviderAuthorizationsJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
+	aspajson []prefixfile.ASPAJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
 	filterDuplicates := make(map[string]struct{})
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -313,15 +313,12 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		})
 	}
 
-	if aspajson != nil {
-		aspalist = handleASPAList(aspajson.IPv4, NowUnix, aspalist, rtr.AFI_IPv4)
-		aspalist = handleASPAList(aspajson.IPv6, NowUnix, aspalist, rtr.AFI_IPv6)
-	}
+	aspalist = handleASPAList(aspajson, NowUnix, aspalist)
 
 	return vrplist, brklist, aspalist, countv4 + countv6, countv4, countv6
 }
 
-func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VAP, AFI uint8) []rtr.VAP {
+func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VAP) []rtr.VAP {
 	for _, v := range list {
 		if v.Expires != nil {
 			if NowUnix > *v.Expires {
@@ -336,7 +333,6 @@ func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VA
 		})
 
 		aspalist = append(aspalist, rtr.VAP{
-			AFI:         AFI,
 			CustomerASN: v.CustomerAsid,
 			Providers:   v.Providers,
 		})
@@ -368,10 +364,7 @@ func (s *state) updateFromNewState() error {
 	}
 	aspajson := s.lastdata.ASPA
 	if aspajson == nil {
-		aspajson = &prefixfile.ProviderAuthorizationsJson{
-			IPv4: make([]prefixfile.ASPAJson, 0),
-			IPv6: make([]prefixfile.ASPAJson, 0),
-		}
+		aspajson = make([]prefixfile.ASPAJson, 0)
 	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
@@ -390,7 +383,7 @@ func (s *state) updateFromNewState() error {
 	}
 
 	if s.slurm != nil {
-		vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson, log.StandardLogger())
+		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
 	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
@@ -413,10 +406,7 @@ func (s *state) reloadFromCurrentState() error {
 	}
 	aspajson := s.lastdata.ASPA
 	if aspajson == nil {
-		aspajson = &prefixfile.ProviderAuthorizationsJson{
-			IPv4: make([]prefixfile.ASPAJson, 0),
-			IPv6: make([]prefixfile.ASPAJson, 0),
-		}
+		aspajson = make([]prefixfile.ASPAJson, 0)
 	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
@@ -435,7 +425,7 @@ func (s *state) reloadFromCurrentState() error {
 	}
 
 	if s.slurm != nil {
-		vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson.IPv4, aspajson.IPv6, bgpsecjson, log.StandardLogger())
+		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
 	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
@@ -448,7 +438,7 @@ func (s *state) reloadFromCurrentState() error {
 
 func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, vaps []rtr.VAP,
 	sessid uint16,
-	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson *prefixfile.ProviderAuthorizationsJson,
+	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson []prefixfile.ASPAJson,
 	countv4 int, countv6 int) error {
 
 	SDs := make([]rtr.SendableData, 0, len(vrps)+len(brks)+len(vaps))

@@ -241,8 +241,8 @@ func TestSlurmEndToEnd(t *testing.T) {
 		panic(err)
 	}
 
-	finalVRP, _, finalASPA6, finalBgpsec :=
-		config.FilterAssert(vrplist.Data, vrplist.ASPA.IPv4, vrplist.ASPA.IPv6, vrplist.BgpSecKeys, nil)
+	finalVRP, finalASPA, finalBgpsec :=
+		config.FilterAssert(vrplist.Data, vrplist.ASPA, vrplist.BgpSecKeys, nil)
 
 	foundAssertVRP := false
 	for _, vrps := range finalVRP {
@@ -259,7 +259,7 @@ func TestSlurmEndToEnd(t *testing.T) {
 	}
 
 	foundAssertVAP := false
-	for _, vaps := range finalASPA6 {
+	for _, vaps := range finalASPA {
 		if vaps.CustomerAsid == 64499 {
 			foundAssertVAP = true
 		}

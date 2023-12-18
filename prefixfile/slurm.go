@@ -267,24 +267,20 @@ func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
 	return vrps
 }
 
-func (s *SlurmLocallyAddedAssertions) AssertVAPs() (v4, v6 []ASPAJson) {
-	vapsv4, vapsv6 := make([]ASPAJson, 0), make([]ASPAJson, 0)
+func (s *SlurmLocallyAddedAssertions) AssertVAPs() []ASPAJson {
+	vaps := make([]ASPAJson, 0)
 
 	if s.AspaAssertions == nil || len(s.AspaAssertions) == 0 {
-		return vapsv4, vapsv6
+		return vaps
 	}
 	for _, assertion := range s.AspaAssertions {
 		vap := ASPAJson{
 			CustomerAsid: assertion.CustomerASNid,
 			Providers:    assertion.ProviderSet,
 		}
-		if strings.Contains(assertion.Afi, "6") {
-			vapsv6 = append(vapsv6, vap)
-		} else {
-			vapsv4 = append(vapsv4, vap)
-		}
+		vaps = append(vaps, vap)
 	}
-	return vapsv4, vapsv6
+	return vaps
 }
 
 func (s *SlurmLocallyAddedAssertions) AssertBRKs() []BgpSecKeyJson {
@@ -305,26 +301,24 @@ func (s *SlurmLocallyAddedAssertions) AssertBRKs() []BgpSecKeyJson {
 	return brks
 }
 
-func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, VAPv4, VAPv6 []ASPAJson, BRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, vaps []ASPAJson, BRKs []BgpSecKeyJson) {
 	vrps = s.LocallyAddedAssertions.AssertVRPs()
-	VAPv4, VAPv6 = s.LocallyAddedAssertions.AssertVAPs()
+	vaps = s.LocallyAddedAssertions.AssertVAPs()
 	BRKs = s.LocallyAddedAssertions.AssertBRKs()
 	return
 }
 
-func (s *SlurmConfig) FilterAssert(vrps []VRPJson, VAPv4, VAPv6 []ASPAJson, BRKs []BgpSecKeyJson, log Logger) (
-	ovrps []VRPJson, oVAPv4, oVAPv6 []ASPAJson, oBRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) FilterAssert(vrps []VRPJson, vaps []ASPAJson, BRKs []BgpSecKeyJson, log Logger) (
+	ovrps []VRPJson, ovaps []ASPAJson, oBRKs []BgpSecKeyJson) {
 	//
 	filteredVRPs, removedVRPs := s.ValidationOutputFilters.FilterOnVRPs(vrps)
-	filteredVAP4s, removedVAP4s := s.ValidationOutputFilters.FilterOnVAPs(VAPv4, false)
-	filteredVAP6s, removedVAP6s := s.ValidationOutputFilters.FilterOnVAPs(VAPv6, true)
+	filteredVAPs, removedVAPs := s.ValidationOutputFilters.FilterOnVAPs(vaps, false)
 	filteredBRKs, removedBRKs := s.ValidationOutputFilters.FilterOnBRKs(BRKs)
 
-	assertVRPs, assertVAP4, assertVAP6, assertBRKs := s.GetAssertions()
+	assertVRPs, assertVAPs, assertBRKs := s.GetAssertions()
 
 	ovrps = append(filteredVRPs, assertVRPs...)
-	oVAPv4 = append(filteredVAP4s, assertVAP4...)
-	oVAPv6 = append(filteredVAP6s, assertVAP6...)
+	ovaps = append(filteredVAPs, assertVAPs...)
 	oBRKs = append(filteredBRKs, assertBRKs...)
 
 	if log != nil {
@@ -337,8 +331,7 @@ func (s *SlurmConfig) FilterAssert(vrps []VRPJson, VAPv4, VAPv6 []ASPAJson, BRKs
 		}
 
 		if len(s.ValidationOutputFilters.AspaFilters) != 0 {
-			log.Infof("Slurm ASPA v4 filtering: %v kept, %v removed, %v asserted", len(filteredVAP4s), len(removedVAP4s), len(oVAPv4))
-			log.Infof("Slurm ASPA v6 filtering: %v kept, %v removed, %v asserted", len(filteredVAP6s), len(removedVAP6s), len(oVAPv6))
+			log.Infof("Slurm ASPA filtering: %v kept, %v removed, %v asserted", len(filteredVAPs), len(removedVAPs), len(ovaps))
 		}
 	}
 	return

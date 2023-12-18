@@ -36,7 +36,7 @@ type VRPList struct {
 	Metadata   MetaData                    `json:"metadata,omitempty"`
 	Data       []VRPJson                   `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
 	BgpSecKeys []BgpSecKeyJson             `json:"bgpsec_keys,omitempty"`
-	ASPA       *ProviderAuthorizationsJson `json:"provider_authorizations,omitempty"`
+	ASPA       []ASPAJson                  `json:"aspas,omitempty"`
 }
 
 type BgpSecKeyJson struct {
@@ -53,11 +53,6 @@ type BgpSecKeyJson struct {
 }
 
 // ASPA
-type ProviderAuthorizationsJson struct {
-	IPv4 []ASPAJson `json:"ipv4"`
-	IPv6 []ASPAJson `json:"ipv6"`
-}
-
 type ASPAJson struct {
 	CustomerAsid uint32   `json:"customer_asid"`
 	Expires      *int64   `json:"expires,omitempty"`

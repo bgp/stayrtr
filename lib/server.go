@@ -979,7 +979,6 @@ func (brk *BgpsecKey) GetFlag() uint8 {
 
 type VAP struct {
 	Flags       uint8
-	AFI         uint8
 	CustomerASN uint32
 	Providers   []uint32
 }
@@ -989,11 +988,11 @@ func (vap *VAP) Type() string {
 }
 
 func (vap *VAP) String() string {
-	return fmt.Sprintf("ASPA AS%v -> AFI %d, Providers: %v", vap.CustomerASN, vap.AFI, vap.Providers)
+	return fmt.Sprintf("ASPA AS%v -> Providers: %v", vap.CustomerASN, vap.Providers)
 }
 
 func (vap *VAP) HashKey() string {
-	return fmt.Sprintf("%v-%x-%v", vap.CustomerASN, vap.AFI, vap.Providers)
+	return fmt.Sprintf("%v-%v", vap.CustomerASN, vap.Providers)
 }
 
 func (r1 *VAP) Equals(r2 SendableData) bool {
@@ -1008,7 +1007,6 @@ func (r1 *VAP) Equals(r2 SendableData) bool {
 func (vap *VAP) Copy() SendableData {
 	cop := VAP{
 		CustomerASN: vap.CustomerASN,
-		AFI:         vap.AFI,
 		Flags:       vap.Flags,
 		Providers:   make([]uint32, 0),
 	}
@@ -1120,15 +1118,24 @@ func (c *Client) SendData(sd SendableData) {
 			return
 		}
 
-		pdu := &PDUASPA{
+		pdu4 := &PDUASPA{
 			Version:           c.version,
 			Flags:             t.Flags,
-			AFIFlags:          t.AFI,
+			AFIFlags:          AFI_IPv4,
 			ProviderASCount:   uint16(len(t.Providers)),
 			CustomerASNumber:  t.CustomerASN,
 			ProviderASNumbers: t.Providers,
 		}
-		c.SendPDU(pdu)
+		pdu6 := &PDUASPA{
+			Version:           c.version,
+			Flags:             t.Flags,
+			AFIFlags:          AFI_IPv6,
+			ProviderASCount:   uint16(len(t.Providers)),
+			CustomerASNumber:  t.CustomerASN,
+			ProviderASNumbers: t.Providers,
+		}
+		c.SendPDU(pdu4)
+		c.SendPDU(pdu6)
 	}
 }
 
