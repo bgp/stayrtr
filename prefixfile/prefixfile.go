@@ -13,13 +13,15 @@ type VRPJson struct {
 	Length  uint8       `json:"maxLength"`
 	ASN     interface{} `json:"asn"`
 	TA      string      `json:"ta,omitempty"`
-	Expires *int        `json:"expires,omitempty"`
+	Expires *int64      `json:"expires,omitempty"`
 }
 
 type MetaData struct {
 	Counts        int    `json:"vrps"`
+	CountASPAs    int    `json:"aspas"`
+	CountBgpSecKeys int  `json:"aspas"`
 	Buildtime     string `json:"buildtime,omitempty"`
-	GeneratedUnix *int   `json:"generated,omitempty"`
+	GeneratedUnix *int64 `json:"generated,omitempty"`
 }
 
 func (md MetaData) GetBuildTime() time.Time {
@@ -39,7 +41,7 @@ type VRPList struct {
 
 type BgpSecKeyJson struct {
 	Asn     uint32  `json:"asn"`
-	Expires *uint32 `json:"expires,omitempty"`
+	Expires *int64  `json:"expires,omitempty"`
 	Ta      string  `json:"ta,omitempty"`
 
 	// Base32 encoded, but encoding/json handles this for us
@@ -58,7 +60,7 @@ type ProviderAuthorizationsJson struct {
 
 type ASPAJson struct {
 	CustomerAsid uint32   `json:"customer_asid"`
-	Expires      *uint32  `json:"expires,omitempty"`
+	Expires      *int64   `json:"expires,omitempty"`
 	Providers    []uint32 `json:"providers"`
 }
 
