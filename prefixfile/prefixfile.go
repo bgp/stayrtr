@@ -8,35 +8,27 @@ import (
 	"time"
 )
 
+type RPKIList struct {
+	Metadata   MetaData                    `json:"metadata,omitempty"`
+	ROA        []VRPJson                   `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
+	BgpSecKeys []BgpSecKeyJson             `json:"bgpsec_keys,omitempty"`
+	ASPA       []VAPJson                   `json:"aspas,omitempty"`
+}
+
+type MetaData struct {
+	Counts        int    `json:"vrps"`
+	CountASPAs    int    `json:"aspas"`
+	CountBgpSecKeys int  `json:"bgpsec_pubkeys"`
+	Buildtime     string `json:"buildtime,omitempty"`
+	GeneratedUnix *int64 `json:"generated,omitempty"`
+}
+
 type VRPJson struct {
 	Prefix  string      `json:"prefix"`
 	Length  uint8       `json:"maxLength"`
 	ASN     interface{} `json:"asn"`
 	TA      string      `json:"ta,omitempty"`
 	Expires *int64      `json:"expires,omitempty"`
-}
-
-type MetaData struct {
-	Counts        int    `json:"vrps"`
-	CountASPAs    int    `json:"aspas"`
-	CountBgpSecKeys int  `json:"aspas"`
-	Buildtime     string `json:"buildtime,omitempty"`
-	GeneratedUnix *int64 `json:"generated,omitempty"`
-}
-
-func (md MetaData) GetBuildTime() time.Time {
-	bt, err := time.Parse(time.RFC3339, md.Buildtime)
-	if err != nil {
-		return time.Time{}
-	}
-	return bt
-}
-
-type VRPList struct {
-	Metadata   MetaData                    `json:"metadata,omitempty"`
-	Data       []VRPJson                   `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
-	BgpSecKeys []BgpSecKeyJson             `json:"bgpsec_keys,omitempty"`
-	ASPA       []ASPAJson                  `json:"aspas,omitempty"`
 }
 
 type BgpSecKeyJson struct {
@@ -52,11 +44,18 @@ type BgpSecKeyJson struct {
 	Ski string `json:"ski"`
 }
 
-// ASPA
-type ASPAJson struct {
+type VAPJson struct {
 	CustomerAsid uint32   `json:"customer_asid"`
 	Expires      *int64   `json:"expires,omitempty"`
 	Providers    []uint32 `json:"providers"`
+}
+
+func (md MetaData) GetBuildTime() time.Time {
+	bt, err := time.Parse(time.RFC3339, md.Buildtime)
+	if err != nil {
+		return time.Time{}
+	}
+	return bt
 }
 
 func (vrp *VRPJson) GetASN2() (uint32, error) {

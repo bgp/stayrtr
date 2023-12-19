@@ -16,7 +16,7 @@ var (
 )
 
 type TestClient struct {
-	Data prefixfile.VRPList
+	Data prefixfile.RPKIList
 
 	InitSerial bool
 	Serial     uint32
@@ -34,9 +34,9 @@ func getBasicClientConguration(version int) ClientConfiguration {
 
 func getClient() *TestClient {
 	return &TestClient{
-		Data: prefixfile.VRPList{
+		Data: prefixfile.RPKIList{
 			Metadata: prefixfile.MetaData{},
-			Data:     make([]prefixfile.VRPJson, 0),
+			ROA:      make([]prefixfile.VRPJson, 0),
 		},
 		InitSerial: InitSerial,
 		Serial:     Serial,

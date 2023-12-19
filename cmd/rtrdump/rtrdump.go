@@ -69,7 +69,7 @@ var (
 )
 
 type Client struct {
-	Data prefixfile.VRPList
+	Data prefixfile.RPKIList
 
 	InitSerial bool
 	Serial     uint32
@@ -84,7 +84,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
 		}
-		c.Data.Data = append(c.Data.Data, rj)
+		c.Data.ROA = append(c.Data.ROA, rj)
 		c.Data.Metadata.Counts++
 
 		if *LogDataPDU {
@@ -96,7 +96,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			ASN:    uint32(pdu.ASN),
 			Length: pdu.MaxLen,
 		}
-		c.Data.Data = append(c.Data.Data, rj)
+		c.Data.ROA = append(c.Data.ROA, rj)
 		c.Data.Metadata.Counts++
 
 		if *LogDataPDU {
@@ -117,9 +117,9 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 	case *rtr.PDUASPA:
 		if c.Data.ASPA == nil {
-			c.Data.ASPA = make([]prefixfile.ASPAJson, 0)
+			c.Data.ASPA = make([]prefixfile.VAPJson, 0)
 		}
-		aj := prefixfile.ASPAJson{
+		aj := prefixfile.VAPJson{
 			CustomerAsid: pdu.CustomerASNumber,
 			Providers:    pdu.ProviderASNumbers,
 		}
@@ -182,9 +182,9 @@ func main() {
 	}
 
 	client := &Client{
-		Data: prefixfile.VRPList{
+		Data: prefixfile.RPKIList{
 			Metadata: prefixfile.MetaData{},
-			Data:     make([]prefixfile.VRPJson, 0),
+			ROA:     make([]prefixfile.VRPJson, 0),
 		},
 		InitSerial: *InitSerial,
 		Serial:     uint32(*Serial),
