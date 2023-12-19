@@ -229,22 +229,22 @@ func ComputeDiff(newSDs, prevSDs []SendableData, populateUnchanged bool) (added,
 	newSDsMap := ConvertSDListToMap(newSDs)
 	prevSDsMap := ConvertSDListToMap(prevSDs)
 
-	for _, vrp := range newSDs {
-		_, exists := prevSDsMap[vrp.HashKey()]
+	for _, item := range newSDs {
+		_, exists := prevSDsMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			rcopy.SetFlag(FLAG_ADDED)
 			added = append(added, rcopy)
 		}
 	}
-	for _, vrp := range prevSDs {
-		_, exists := newSDsMap[vrp.HashKey()]
+	for _, item := range prevSDs {
+		_, exists := newSDsMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			rcopy.SetFlag(FLAG_REMOVED)
 			removed = append(removed, rcopy)
 		} else if populateUnchanged {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			unchanged = append(unchanged, rcopy)
 		}
 	}
@@ -257,25 +257,25 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 	diffMap := ConvertSDListToMap(diff)
 	prevSDsMap := ConvertSDListToMap(prevSDs)
 
-	for _, vrp := range prevSDs {
-		_, exists := diffMap[vrp.HashKey()]
+	for _, item := range prevSDs {
+		_, exists := diffMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			newSDs = append(newSDs, rcopy)
 		}
 	}
-	for _, vrp := range diff {
-		if vrp.GetFlag() == FLAG_ADDED {
-			rcopy := vrp.Copy()
+	for _, item := range diff {
+		if item.GetFlag() == FLAG_ADDED {
+			rcopy := item.Copy()
 			newSDs = append(newSDs, rcopy)
-		} else if vrp.GetFlag() == FLAG_REMOVED {
-			cvrp, exists := prevSDsMap[vrp.HashKey()]
+		} else if item.GetFlag() == FLAG_REMOVED {
+			citem, exists := prevSDsMap[item.HashKey()]
 			if !exists {
-				rcopy := vrp.Copy()
+				rcopy := item.Copy()
 				newSDs = append(newSDs, rcopy)
 			} else {
-				if cvrp == FLAG_REMOVED {
-					rcopy := vrp.Copy()
+				if citem == FLAG_REMOVED {
+					rcopy := item.Copy()
 					newSDs = append(newSDs, rcopy)
 				}
 			}
@@ -295,16 +295,16 @@ func (s *Server) GetSessionId() uint16 {
 
 func (s *Server) GetCurrentSDs() ([]SendableData, bool) {
 	s.sdlock.RLock()
-	vrp := s.sdCurrent
+	sd := s.sdCurrent
 	s.sdlock.RUnlock()
-	return vrp, true
+	return sd, true
 }
 
 func (s *Server) GetSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 	s.sdlock.RLock()
-	vrp, ok := s.getSDsSerialDiff(serial)
+	sd, ok := s.getSDsSerialDiff(serial)
 	s.sdlock.RUnlock()
-	return vrp, ok
+	return sd, ok
 }
 
 func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
@@ -312,12 +312,12 @@ func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 		return []SendableData{}, true
 	}
 
-	vrp := make([]SendableData, 0)
+	sd := make([]SendableData, 0)
 	index, ok := s.sdMapSerial[serial]
 	if ok {
-		vrp = s.sdListDiff[index]
+		sd = s.sdListDiff[index]
 	}
-	return vrp, ok
+	return sd, ok
 }
 
 func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
@@ -401,10 +401,10 @@ func (s *Server) addSerial(serial uint32) []uint32 {
 func (s *Server) AddSDsDiff(diff []SendableData) {
 	s.sdlock.RLock()
 	nextDiff := make([][]SendableData, len(s.sdListDiff))
-	for i, prevVrps := range s.sdListDiff {
-		nextDiff[i] = ApplyDiff(diff, prevVrps)
+	for i, prevSDs := range s.sdListDiff {
+		nextDiff[i] = ApplyDiff(diff, prevSDs)
 	}
-	newVrpCurrent := ApplyDiff(diff, s.sdCurrent)
+	newSDCurrent := ApplyDiff(diff, s.sdCurrent)
 	curserial, _ := s.getCurrentSerial()
 	s.sdlock.RUnlock()
 
@@ -432,7 +432,7 @@ func (s *Server) AddSDsDiff(diff []SendableData) {
 		delete(s.sdMapSerial, removeSerial)
 	}
 	s.sdListDiff = nextDiff
-	s.sdCurrent = newVrpCurrent
+	s.sdCurrent = newSDCurrent
 	s.setSerial(newserial)
 }
 
@@ -1027,8 +1027,8 @@ func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableD
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
-	for _, data := range data {
-		c.SendData(data.Copy())
+	for _, item := range data {
+		c.SendData(item.Copy())
 	}
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
