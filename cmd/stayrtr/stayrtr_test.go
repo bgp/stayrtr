@@ -14,8 +14,8 @@ import (
 
 func TestProcessData(t *testing.T) {
 	var stuff []prefixfile.VRPJson
-	NowUnix := int(time.Now().Unix())
-	ExpiredTime := 1337
+	NowUnix := time.Now().Unix()
+	ExpiredTime := int64(1337)
 
 	stuff = append(stuff,
 		prefixfile.VRPJson{
@@ -158,8 +158,8 @@ func TestJson(t *testing.T) {
 		t.Errorf("Unable to decode json: %v", err)
 	}
 
-	Ex1 := 1627568318
-	Ex2 := 1627575699
+	Ex1 := int64(1627568318)
+	Ex2 := int64(1627575699)
 
 	want := (&prefixfile.VRPList{
 		Metadata: prefixfile.MetaData{

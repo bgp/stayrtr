@@ -208,7 +208,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 	// grab the current time every time it's invoked, time calls can be slow on
 	// some platforms, so lets just get the unix time when we start and use that
 	// to compare it all
-	NowUnix := time.Now().UTC().Unix()
+	NowUnix := time.Now().Unix()
 
 	var vrplist []rtr.VRP
 	var brklist = make([]rtr.BgpsecKey, 0)
@@ -235,7 +235,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		if v.Expires != nil {
 			// Prevent stale VRPs from being considered
 			// https://github.com/bgp/stayrtr/issues/15
-			if int(NowUnix) > int(*v.Expires) {
+			if NowUnix > *v.Expires {
 				continue
 			}
 		}
@@ -297,7 +297,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		if v.Expires != nil {
 			// Prevent stale VRPs from being considered
 			// https://github.com/bgp/stayrtr/issues/15
-			if int(NowUnix) > int(*v.Expires) {
+			if NowUnix > *v.Expires {
 				continue
 			}
 		}
@@ -325,7 +325,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VAP, AFI uint8) []rtr.VAP {
 	for _, v := range list {
 		if v.Expires != nil {
-			if int(NowUnix) > int(*v.Expires) {
+			if NowUnix > *v.Expires {
 				continue
 			}
 		}
@@ -377,7 +377,7 @@ func (s *state) updateFromNewState() error {
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.lastdata.Metadata.GeneratedUnix != nil {
-		buildtime, err = time.Unix(int64(*s.lastdata.Metadata.GeneratedUnix), 0), nil
+		buildtime, err = time.Unix(*s.lastdata.Metadata.GeneratedUnix, 0), nil
 	}
 	if s.checktime {
 		if err != nil {
@@ -422,7 +422,7 @@ func (s *state) reloadFromCurrentState() error {
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.lastdata.Metadata.GeneratedUnix != nil {
-		buildtime, err = time.Unix(int64(*s.lastdata.Metadata.GeneratedUnix), 0), nil
+		buildtime, err = time.Unix(*s.lastdata.Metadata.GeneratedUnix, 0), nil
 	}
 	if s.checktime {
 		if err != nil {
