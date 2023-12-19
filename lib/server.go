@@ -74,16 +74,16 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		vrps, exists := e.sdManager.GetCurrentSDs()
+		data, exists := e.sdManager.GetCurrentSDs()
 		if !exists {
 			c.SendInternalError()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, data)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent cache (current serial %d, session: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -109,16 +109,16 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		vrps, exists := e.sdManager.GetSDsSerialDiff(serialNumber)
+		data, exists := e.sdManager.GetSDsSerialDiff(serialNumber)
 		if !exists {
 			c.SendCacheReset()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, data)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent cache (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -351,11 +351,11 @@ func (s *Server) setSerial(serial uint32) {
 }
 
 // This function sets the serial. Function must
-// be called before the VRPs data is added.
+// be called before the cache data is added.
 func (s *Server) SetSerial(serial uint32) {
 	s.sdlock.RLock()
 	defer s.sdlock.RUnlock()
-	//s.vrpListSerial = make([]uint32, 0)
+	//s.sdListSerial = make([]uint32, 0)
 	s.setSerial(serial)
 }
 
@@ -366,16 +366,10 @@ func (s *Server) CountVRPs() int {
 	return len(s.sdCurrent)
 }
 
-func (s *Server) AddData(vrps []SendableData) {
+func (s *Server) AddData(new []SendableData) {
 	s.sdlock.RLock()
 
-	// a slight hack for now, until we have BGPsec/ASPA support
-	vrpsAsSD := make([]SendableData, 0, len(vrps))
-	for _, v := range vrps {
-		vrpsAsSD = append(vrpsAsSD, v.Copy())
-	}
-
-	added, removed, _ := ComputeDiff(vrpsAsSD, s.sdCurrent, false)
+	added, removed, _ := ComputeDiff(new, s.sdCurrent, false)
 	if s.log != nil && s.logverbose {
 		s.log.Debugf("Computed diff: added (%v), removed (%v)", added, removed)
 	} else if s.log != nil {
