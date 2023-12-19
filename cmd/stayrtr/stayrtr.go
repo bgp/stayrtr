@@ -77,7 +77,7 @@ var (
 
 	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale (disable by passing -checktime=false)")
 
-	CacheBin = flag.String("cache", "https://console.rpki-client.org/vrps.json", "URL of the cached JSON data")
+	CacheBin = flag.String("cache", "https://console.rpki-client.org/rpki.json", "URL of the Validated RPKI data in JSON format")
 
 	Etag            = flag.Bool("etag", true, "Control usage of Etag header (disable with -etag=false)")
 	LastModified    = flag.Bool("last.modified", true, "Control usage of Last-Modified header (disable with -last.modified=false)")

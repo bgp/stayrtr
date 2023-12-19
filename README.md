@@ -261,7 +261,7 @@ generate actually are visible to RPs, to monitor the full cycle.
 ```
 $ ./rtrmon \
   -primary.host tcp://rtr.rpki.cloudflare.com:8282 \
-  -secondary.host https://console.rpki-client.org/vrps.json \
+  -secondary.host https://console.rpki-client.org/rpki.json \
   -secondary.refresh 30s \
   -primary.refresh 30s
 ```
@@ -321,7 +321,7 @@ Use your own validator, as long as the JSON source follows the following schema:
 ```
 
 * **Third-party JSON formatted VRP exports:**
-  * [console.rpki-client.org](https://console.rpki-client.org/vrps.json) (default, based on OpenBSD's `rpki-client`)
+  * [console.rpki-client.org](https://console.rpki-client.org/rpki.json) (default, based on OpenBSD's `rpki-client`)
   * [NTT](https://rpki.gin.ntt.net/api/export.json) (based on OpenBSD's `rpki-client`)
 
 By default, the session ID will be randomly generated. The serial will start at zero.
