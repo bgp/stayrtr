@@ -6,20 +6,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
 func GenerateSessionId() uint16 {
-	var sessid uint16
-	r := rand.New(rand.NewSource(time.Now().UTC().Unix()))
-	sessid = uint16(r.Uint32())
-	return sessid
+	return uint16(rand.Intn(math.MaxUint16 + 1))
 }
 
 type RTRServerEventHandler interface {
