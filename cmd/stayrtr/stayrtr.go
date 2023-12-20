@@ -313,13 +313,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		})
 	}
 
-	aspalist = handleASPAList(aspajson, NowUnix, aspalist)
-
-	return vrplist, brklist, aspalist, countv4 + countv6, countv4, countv6
-}
-
-func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VAP) []rtr.VAP {
-	for _, v := range list {
+	for _, v := range aspajson {
 		if v.Expires != nil {
 			if NowUnix > *v.Expires {
 				continue
@@ -337,7 +331,8 @@ func handleASPAList(list []prefixfile.ASPAJson, NowUnix int64, aspalist []rtr.VA
 			Providers:   v.Providers,
 		})
 	}
-	return aspalist
+
+	return vrplist, brklist, aspalist, countv4 + countv6, countv4, countv6
 }
 
 type IdenticalFile struct {
