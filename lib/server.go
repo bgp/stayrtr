@@ -145,7 +145,6 @@ type Server struct {
 	sdCurrent       []SendableData
 	sdCurrentSerial uint32
 	keepDiff        int
-	manualserial    bool
 
 	pduRefreshInterval uint32
 	pduRetryInterval   uint32
@@ -285,10 +284,6 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 	return newSDs
 }
 
-func (s *Server) SetManualSerial(v bool) {
-	s.manualserial = v
-}
-
 func (s *Server) GetSessionId() uint16 {
 	return s.sessId
 }
@@ -340,7 +335,7 @@ func (s *Server) GenerateSerial() uint32 {
 
 func (s *Server) generateSerial() uint32 {
 	newserial := s.sdCurrentSerial
-	if !s.manualserial && len(s.sdListSerial) > 0 {
+	if len(s.sdListSerial) > 0 {
 		newserial = s.sdListSerial[len(s.sdListSerial)-1] + 1
 	}
 	return newserial
