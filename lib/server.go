@@ -354,7 +354,7 @@ func (s *Server) SetSerial(serial uint32) {
 	s.setSerial(serial)
 }
 
-func (s *Server) CountVRPs() int {
+func (s *Server) CountSDs() int {
 	s.sdlock.RLock()
 	defer s.sdlock.RUnlock()
 
