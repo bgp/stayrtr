@@ -137,8 +137,6 @@ type Server struct {
 
 	sdlock          *sync.RWMutex
 	sdListDiff      [][]SendableData
-	sdMapSerial     map[uint32]int
-	sdListSerial    []uint32
 	sdCurrent       []SendableData
 	sdCurrentSerial uint32
 	keepDiff        int
@@ -186,8 +184,6 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 	return &Server{
 		sdlock:       &sync.RWMutex{},
 		sdListDiff:   make([][]SendableData, 0),
-		sdMapSerial:  make(map[uint32]int),
-		sdListSerial: make([]uint32, 0),
 		sdCurrent:    make([]SendableData, 0),
 		keepDiff:     configuration.KeepDifference,
 
@@ -303,13 +299,16 @@ func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 	if serial == s.sdCurrentSerial {
 		return []SendableData{}, true
 	}
-
-	sd := make([]SendableData, 0)
-	index, ok := s.sdMapSerial[serial]
-	if ok {
-		sd = s.sdListDiff[index]
+	if serial > s.sdCurrentSerial {
+		return nil, false
 	}
-	return sd, ok
+	diff := int(s.sdCurrentSerial - serial)
+	if diff > len(s.sdListDiff) {
+		return nil, false
+	}
+
+	sd := s.sdListDiff[len(s.sdListDiff) - diff]
+	return sd, true
 }
 
 func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
@@ -320,35 +319,15 @@ func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
 }
 
 func (s *Server) getCurrentSerial() (uint32, bool) {
-	return s.sdCurrentSerial, len(s.sdListSerial) > 0
-}
-
-func (s *Server) GenerateSerial() uint32 {
-	s.sdlock.RLock()
-	newserial := s.generateSerial()
-	s.sdlock.RUnlock()
-	return newserial
+	return s.sdCurrentSerial, len(s.sdCurrent) > 0
 }
 
 func (s *Server) generateSerial() uint32 {
 	newserial := s.sdCurrentSerial
-	if len(s.sdListSerial) > 0 {
-		newserial = s.sdListSerial[len(s.sdListSerial)-1] + 1
+	if len(s.sdCurrent) > 0 {
+		newserial++
 	}
 	return newserial
-}
-
-func (s *Server) setSerial(serial uint32) {
-	s.sdCurrentSerial = serial
-}
-
-// This function sets the serial. Function must
-// be called before the cache data is added.
-func (s *Server) SetSerial(serial uint32) {
-	s.sdlock.RLock()
-	defer s.sdlock.RUnlock()
-	//s.sdListSerial = make([]uint32, 0)
-	s.setSerial(serial)
 }
 
 func (s *Server) CountSDs() int {
@@ -378,53 +357,27 @@ func (s *Server) AddData(new []SendableData) bool {
 	}
 }
 
-func (s *Server) addSerial(serial uint32) []uint32 {
-	removed := make([]uint32, 0)
-	if len(s.sdListSerial) >= s.keepDiff && s.keepDiff > 0 {
-		removeDiff := len(s.sdListSerial) - s.keepDiff
-		removed = s.sdListSerial[0:removeDiff]
-		s.sdListSerial = s.sdListSerial[removeDiff:]
-	}
-	s.sdListSerial = append(s.sdListSerial, serial)
-	return removed
-}
-
 func (s *Server) AddSDsDiff(diff []SendableData) {
 	s.sdlock.RLock()
-	nextDiff := make([][]SendableData, len(s.sdListDiff))
+	nextDiff := make([][]SendableData, len(s.sdListDiff) + 1)
 	for i, prevSDs := range s.sdListDiff {
 		nextDiff[i] = ApplyDiff(diff, prevSDs)
 	}
 	newSDCurrent := ApplyDiff(diff, s.sdCurrent)
-	curserial, _ := s.getCurrentSerial()
 	s.sdlock.RUnlock()
 
 	s.sdlock.Lock()
 	defer s.sdlock.Unlock()
 	newserial := s.generateSerial()
-	removed := s.addSerial(newserial)
 
 	nextDiff = append(nextDiff, diff)
-	if len(nextDiff) >= s.keepDiff && s.keepDiff > 0 {
-		nextDiff = nextDiff[len(removed):]
+	if s.keepDiff > 0 && len(nextDiff) > s.keepDiff {
+		nextDiff = nextDiff[len(nextDiff) - s.keepDiff:]
 	}
 
-	s.sdMapSerial[curserial] = len(nextDiff) - 1
-
-	if len(removed) > 0 {
-		for k, v := range s.sdMapSerial {
-			if k != curserial {
-				s.sdMapSerial[k] = v - len(removed)
-			}
-		}
-	}
-
-	for _, removeSerial := range removed {
-		delete(s.sdMapSerial, removeSerial)
-	}
 	s.sdListDiff = nextDiff
 	s.sdCurrent = newSDCurrent
-	s.setSerial(newserial)
+	s.sdCurrentSerial = newserial
 }
 
 func (s *Server) SetBaseVersion(version uint8) {
