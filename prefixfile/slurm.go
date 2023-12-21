@@ -10,8 +10,6 @@ import (
 	"net"
 	"net/netip"
 	"strings"
-
-	"go4.org/netipx"
 )
 
 type SlurmPrefixFilter struct {
@@ -116,13 +114,6 @@ func (s *SlurmValidationOutputFilters) FilterOnVRPs(vrps []VRPJson) (added, remo
 	}
 	for _, vrp := range vrps {
 		rPrefix := vrp.GetPrefix()
-		var rIPStart netip.Addr
-		var rIPEnd netip.Addr
-		if rPrefix.IsValid() {
-			r := netipx.RangeOfPrefix(rPrefix)
-			rIPStart = r.From()
-			rIPEnd = r.To()
-		}
 
 		var wasRemoved bool
 		for _, filter := range s.PrefixFilters {
@@ -131,7 +122,8 @@ func (s *SlurmValidationOutputFilters) FilterOnVRPs(vrps []VRPJson) (added, remo
 			match := true
 			if match && fPrefix.IsValid() && rPrefix.IsValid() {
 
-				if !(fPrefix.Contains(rIPStart) && fPrefix.Contains(rIPEnd)) {
+				if !(fPrefix.Overlaps(rPrefix) &&
+				    fPrefix.Bits() <= rPrefix.Bits()) {
 					match = false
 				}
 			}
