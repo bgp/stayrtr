@@ -117,22 +117,14 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 
 	case *rtr.PDUASPA:
 		if c.Data.ASPA == nil {
-			c.Data.ASPA = &prefixfile.ProviderAuthorizationsJson{
-				IPv4: make([]prefixfile.ASPAJson, 0),
-				IPv6: make([]prefixfile.ASPAJson, 0),
-			}
+			c.Data.ASPA = make([]prefixfile.ASPAJson, 0)
 		}
 		aj := prefixfile.ASPAJson{
 			CustomerAsid: pdu.CustomerASNumber,
 			Providers:    pdu.ProviderASNumbers,
 		}
 
-		switch pdu.AFIFlags {
-		case rtr.AFI_IPv4:
-			c.Data.ASPA.IPv4 = append(c.Data.ASPA.IPv4, aj)
-		case rtr.AFI_IPv6:
-			c.Data.ASPA.IPv6 = append(c.Data.ASPA.IPv6, aj)
-		}
+		c.Data.ASPA = append(c.Data.ASPA, aj)
 
 		if *LogDataPDU {
 			log.Debugf("Received: %v", pdu)
