@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"net/netip"
 	"strings"
+
+	"go4.org/netipx"
 )
 
 type SlurmPrefixFilter struct {
@@ -37,8 +40,8 @@ func (pf *SlurmPrefixFilter) GetASN() (uint32, bool) {
 	}
 }
 
-func (pf *SlurmPrefixFilter) GetPrefix() *net.IPNet {
-	_, prefix, _ := net.ParseCIDR(pf.Prefix)
+func (pf *SlurmPrefixFilter) GetPrefix() netip.Prefix {
+	prefix, _ := netip.ParsePrefix(pf.Prefix)
 	return prefix
 }
 
@@ -113,11 +116,12 @@ func (s *SlurmValidationOutputFilters) FilterOnVRPs(vrps []VRPJson) (added, remo
 	}
 	for _, vrp := range vrps {
 		rPrefix := vrp.GetPrefix()
-		var rIPStart net.IP
-		var rIPEnd net.IP
-		if rPrefix != nil {
-			rIPStart = rPrefix.IP.To16()
-			rIPEnd = GetIPBroadcast(*rPrefix).To16()
+		var rIPStart netip.Addr
+		var rIPEnd netip.Addr
+		if rPrefix.IsValid() {
+			r := netipx.RangeOfPrefix(rPrefix)
+			rIPStart = r.From()
+			rIPEnd = r.To()
 		}
 
 		var wasRemoved bool
@@ -125,7 +129,7 @@ func (s *SlurmValidationOutputFilters) FilterOnVRPs(vrps []VRPJson) (added, remo
 			fPrefix := filter.GetPrefix()
 			fASN, fASNEmpty := filter.GetASN()
 			match := true
-			if match && fPrefix != nil && rPrefix != nil {
+			if match && fPrefix.IsValid() && rPrefix.IsValid() {
 
 				if !(fPrefix.Contains(rIPStart) && fPrefix.Contains(rIPEnd)) {
 					match = false

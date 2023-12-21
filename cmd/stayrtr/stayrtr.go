@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"sort"
@@ -27,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"go4.org/netipx"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -182,9 +184,8 @@ func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 	return &vrplistjson, err
 }
 
-func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
-	plen, max := net.IPMask.Size(prefix.Mask)
-
+func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
+	plen, max := net.IPMask.Size(netipx.PrefixIPNet(prefix).Mask)
 	if plen == 0 || uint8(plen) > maxLength || maxLength > uint8(max) {
 		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
 		return false
@@ -201,8 +202,7 @@ func isValidPrefixLength(prefix *net.IPNet, maxLength uint8) bool {
 func processData(vrplistjson []prefixfile.VRPJson,
 	brklistjson []prefixfile.BgpSecKeyJson,
 	aspajson *prefixfile.ProviderAuthorizationsJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
-	//
-	filterDuplicates := make(map[string]bool)
+	filterDuplicates := make(map[string]struct{})
 
 	// It may be tempting to change this to a simple time.Since() but that will
 	// grab the current time every time it's invoked, time calls can be slow on
@@ -240,7 +240,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 			}
 		}
 
-		if prefix.IP.To4() != nil {
+		if prefix.Addr().Is4() {
 			countv4++
 		} else {
 			countv6++
@@ -251,10 +251,10 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		if exists {
 			continue
 		}
-		filterDuplicates[key] = true
+		filterDuplicates[key] = struct{}{}
 
 		vrp := rtr.VRP{
-			Prefix: *prefix,
+			Prefix: prefix,
 			ASN:    asn,
 			MaxLen: v.Length,
 		}
@@ -281,15 +281,14 @@ func processData(vrplistjson []prefixfile.VRPJson,
 				P1 is likely to mark a BGP prefix P1 invalid. Therefore, the cache SHOULD announce the
 				sub-prefix P1 before the covering prefix P0.
 		*/
-		CIDRSizei, _ := vrplist[i].Prefix.Mask.Size()
-		CIDRSizej, _ := vrplist[j].Prefix.Mask.Size()
-		if CIDRSizei == CIDRSizej {
+
+		if vrplist[i].Prefix.Bits() == vrplist[j].Prefix.Bits() {
 			if vrplist[i].MaxLen != vrplist[j].MaxLen {
 				return vrplist[i].MaxLen > vrplist[j].MaxLen
 			}
-			return bytes.Compare(vrplist[i].Prefix.IP, vrplist[j].Prefix.IP) < 1
+			return vrplist[i].Prefix.Addr().Compare(vrplist[j].Prefix.Addr()) < 1
 		} else {
-			return CIDRSizei > CIDRSizej
+			return vrplist[i].Prefix.Bits() > vrplist[j].Prefix.Bits()
 		}
 	})
 
@@ -452,7 +451,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson *prefixfile.ProviderAuthorizationsJson,
 	countv4 int, countv6 int) error {
 
-	SDs := make([]rtr.SendableData, 0)
+	SDs := make([]rtr.SendableData, 0, len(vrps)+len(brks)+len(vaps))
 	for _, v := range vrps {
 		SDs = append(SDs, v.Copy())
 	}
@@ -488,9 +487,9 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 		var countv4_dup int
 		var countv6_dup int
 		for _, vrp := range vrps {
-			if vrp.Prefix.IP.To4() != nil {
+			if vrp.Prefix.Addr().Is4() {
 				countv4_dup++
-			} else if vrp.Prefix.IP.To16() != nil {
+			} else if vrp.Prefix.Addr().Is6() {
 				countv6_dup++
 			}
 		}

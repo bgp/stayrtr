@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -103,17 +103,17 @@ func TestProcessData(t *testing.T) {
 	got, _, _, count, v4count, v6count := processData(stuff, nil, nil)
 	want := []rtr.VRP{
 		{
-			Prefix: mustParseIPNet("2001:db8::/32"),
+			Prefix: netip.MustParsePrefix("2001:db8::/32"),
 			MaxLen: 33,
 			ASN:    123,
 		},
 		{
-			Prefix: mustParseIPNet("192.168.1.0/24"),
+			Prefix: netip.MustParsePrefix("192.168.1.0/24"),
 			MaxLen: 25,
 			ASN:    123,
 		},
 		{
-			Prefix: mustParseIPNet("192.168.0.0/24"),
+			Prefix: netip.MustParsePrefix("192.168.0.0/24"),
 			MaxLen: 24,
 			ASN:    123,
 		},
@@ -122,20 +122,15 @@ func TestProcessData(t *testing.T) {
 		t.Errorf("Wanted count = 3, v4count = 2, v6count = 1, but got %d, %d, %d", count, v4count, v6count)
 	}
 
-	if !cmp.Equal(got, want) {
+	opts := []cmp.Option{
+		cmp.Comparer(func(x, y netip.Prefix) bool {
+			return x == y
+		}),
+	}
+
+	if !cmp.Equal(got, want, opts...) {
 		t.Errorf("Want (%+v), Got (%+v)", want, got)
 	}
-}
-
-// mustParseIPNet is a test helper function to return a net.IPNet
-// This should only be called in test code, and it'll panic on test set up
-// if unable to parse.
-func mustParseIPNet(prefix string) net.IPNet {
-	_, ipnet, err := net.ParseCIDR(prefix)
-	if err != nil {
-		panic(err)
-	}
-	return *ipnet
 }
 
 func BenchmarkDecodeJSON(b *testing.B) {
