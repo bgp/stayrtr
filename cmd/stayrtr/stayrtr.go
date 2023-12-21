@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -28,7 +27,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"go4.org/netipx"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -185,7 +183,8 @@ func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
 }
 
 func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
-	plen, max := net.IPMask.Size(netipx.PrefixIPNet(prefix).Mask)
+	plen := prefix.Bits()
+	max := prefix.Addr().BitLen()
 	if plen == 0 || uint8(plen) > maxLength || maxLength > uint8(max) {
 		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
 		return false
