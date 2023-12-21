@@ -173,13 +173,13 @@ func newSHA256(data []byte) []byte {
 	return hash[:]
 }
 
-func decodeJSON(data []byte) (*prefixfile.VRPList, error) {
+func decodeJSON(data []byte) (*prefixfile.RPKIList, error) {
 	buf := bytes.NewBuffer(data)
 	dec := json.NewDecoder(buf)
 
-	var vrplistjson prefixfile.VRPList
-	err := dec.Decode(&vrplistjson)
-	return &vrplistjson, err
+	var rpkilistjson prefixfile.RPKIList
+	err := dec.Decode(&rpkilistjson)
+	return &rpkilistjson, err
 }
 
 func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
@@ -200,7 +200,7 @@ func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs, BGPsec Keys and ASPA records
 func processData(vrplistjson []prefixfile.VRPJson,
 	brklistjson []prefixfile.BgpSecKeyJson,
-	aspajson []prefixfile.ASPAJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
+	aspajson []prefixfile.VAPJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
 	filterDuplicates := make(map[string]struct{})
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -342,13 +342,13 @@ func (e IdenticalFile) Error() string {
 	return fmt.Sprintf("File %s is identical to the previous version", e.File)
 }
 
-var errVRPJsonFileTooOld = errors.New("VRP JSON file is older than 24 hours")
+var errRPKIJsonFileTooOld = errors.New("RPKI JSON file is older than 24 hours")
 
 // Update the state based on the current slurm file and data.
 func (s *state) updateFromNewState() error {
 	sessid := s.server.GetSessionId()
 
-	vrpsjson := s.lastdata.Data
+	vrpsjson := s.lastdata.ROA
 	if vrpsjson == nil {
 		return nil
 	}
@@ -358,7 +358,7 @@ func (s *state) updateFromNewState() error {
 	}
 	aspajson := s.lastdata.ASPA
 	if aspajson == nil {
-		aspajson = make([]prefixfile.ASPAJson, 0)
+		aspajson = make([]prefixfile.VAPJson, 0)
 	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
@@ -371,8 +371,8 @@ func (s *state) updateFromNewState() error {
 		}
 		notafter := buildtime.Add(time.Hour * 24)
 		if time.Now().UTC().After(notafter) {
-			log.Warnf("VRP JSON file is older than 24 hours: %v", buildtime)
-			return errVRPJsonFileTooOld
+			log.Warnf("RPKI JSON file is older than 24 hours: %v", buildtime)
+			return errRPKIJsonFileTooOld
 		}
 	}
 
@@ -390,7 +390,7 @@ func (s *state) updateFromNewState() error {
 func (s *state) reloadFromCurrentState() error {
 	sessid := s.server.GetSessionId()
 
-	vrpsjson := s.lastdata.Data
+	vrpsjson := s.lastdata.ROA
 	if vrpsjson == nil {
 		return nil
 	}
@@ -400,7 +400,7 @@ func (s *state) reloadFromCurrentState() error {
 	}
 	aspajson := s.lastdata.ASPA
 	if aspajson == nil {
-		aspajson = make([]prefixfile.ASPAJson, 0)
+		aspajson = make([]prefixfile.VAPJson, 0)
 	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
@@ -413,8 +413,8 @@ func (s *state) reloadFromCurrentState() error {
 		}
 		notafter := buildtime.Add(time.Hour * 24)
 		if time.Now().UTC().After(notafter) {
-			log.Warnf("VRP JSON file is older than 24 hours: %v", buildtime)
-			return errVRPJsonFileTooOld
+			log.Warnf("RPKI JSON file is older than 24 hours: %v", buildtime)
+			return errRPKIJsonFileTooOld
 		}
 	}
 
@@ -423,8 +423,8 @@ func (s *state) reloadFromCurrentState() error {
 	}
 
 	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
-	if s.server.CountVRPs() != count {
-		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountVRPs(), count)
+	if s.server.CountSDs() != count {
+		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountSDs(), count)
 		return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 	}
 	return nil
@@ -432,7 +432,7 @@ func (s *state) reloadFromCurrentState() error {
 
 func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, vaps []rtr.VAP,
 	sessid uint16,
-	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson []prefixfile.ASPAJson,
+	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson []prefixfile.VAPJson,
 	countv4 int, countv6 int) error {
 
 	SDs := make([]rtr.SendableData, 0, len(vrps)+len(brks)+len(vaps))
@@ -455,12 +455,12 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 	}
 
 	s.lockJson.Lock()
-	s.exported = prefixfile.VRPList{
+	s.exported = prefixfile.RPKIList{
 		Metadata: prefixfile.MetaData{
 			Counts:    len(vrpsjson),
 			Buildtime: s.lastdata.Metadata.Buildtime,
 		},
-		Data:       vrpsjson,
+		ROA:        vrpsjson,
 		BgpSecKeys: brksjson,
 		ASPA:       aspajson,
 	}
@@ -508,14 +508,14 @@ func (s *state) updateFile(file string) (bool, error) {
 
 	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthash, hsum)
 
-	vrplistjson, err := decodeJSON(data)
+	rpkilistjson, err := decodeJSON(data)
 	if err != nil {
 		return false, err
 	}
 
 	s.lasthash = hsum
 	s.lastchange = time.Now().UTC()
-	s.lastdata = vrplistjson
+	s.lastdata = rpkilistjson
 
 	return true, nil
 }
@@ -617,7 +617,7 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 		if cacheUpdated || slurmNotPresentOrUpdated {
 			err := s.updateFromNewState()
 			if err != nil {
-				if err == errVRPJsonFileTooOld {
+				if err == errRPKIJsonFileTooOld {
 					// If the exiting build time is over 24 hours, It's time to drop everything out.
 					// to avoid routing on stale data
 					buildTime := s.exported.Metadata.GetBuildTime()
@@ -645,7 +645,7 @@ func (s *state) exporter(wr http.ResponseWriter, r *http.Request) {
 }
 
 type state struct {
-	lastdata   *prefixfile.VRPList
+	lastdata   *prefixfile.RPKIList
 	lasthash   []byte
 	lastchange time.Time
 	lastts     time.Time
@@ -657,7 +657,7 @@ type state struct {
 
 	metricsEvent *metricsEvent
 
-	exported prefixfile.VRPList
+	exported prefixfile.RPKIList
 	lockJson *sync.RWMutex
 
 	slurm *prefixfile.SlurmConfig
@@ -754,7 +754,7 @@ func run() error {
 
 	s := state{
 		server:       server,
-		lastdata:     &prefixfile.VRPList{},
+		lastdata:     &prefixfile.RPKIList{},
 		metricsEvent: me,
 		sendNotifs:   *SendNotifs,
 		checktime:    *TimeCheck,

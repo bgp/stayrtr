@@ -207,9 +207,9 @@ func (s *SlurmValidationOutputFilters) FilterOnBRKs(brks []BgpSecKeyJson) (added
 	return added, removed
 }
 
-func (s *SlurmValidationOutputFilters) FilterOnVAPs(vaps []ASPAJson, ipv6 bool) (added, removed []ASPAJson) {
-	added = make([]ASPAJson, 0)
-	removed = make([]ASPAJson, 0)
+func (s *SlurmValidationOutputFilters) FilterOnVAPs(vaps []VAPJson, ipv6 bool) (added, removed []VAPJson) {
+	added = make([]VAPJson, 0)
+	removed = make([]VAPJson, 0)
 	if s.AspaFilters == nil || len(s.AspaFilters) == 0 {
 		return vaps, removed
 	}
@@ -259,14 +259,14 @@ func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
 	return vrps
 }
 
-func (s *SlurmLocallyAddedAssertions) AssertVAPs() []ASPAJson {
-	vaps := make([]ASPAJson, 0)
+func (s *SlurmLocallyAddedAssertions) AssertVAPs() []VAPJson {
+	vaps := make([]VAPJson, 0)
 
 	if s.AspaAssertions == nil || len(s.AspaAssertions) == 0 {
 		return vaps
 	}
 	for _, assertion := range s.AspaAssertions {
-		vap := ASPAJson{
+		vap := VAPJson{
 			CustomerAsid: assertion.CustomerASNid,
 			Providers:    assertion.ProviderSet,
 		}
@@ -293,15 +293,15 @@ func (s *SlurmLocallyAddedAssertions) AssertBRKs() []BgpSecKeyJson {
 	return brks
 }
 
-func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, vaps []ASPAJson, BRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, vaps []VAPJson, BRKs []BgpSecKeyJson) {
 	vrps = s.LocallyAddedAssertions.AssertVRPs()
 	vaps = s.LocallyAddedAssertions.AssertVAPs()
 	BRKs = s.LocallyAddedAssertions.AssertBRKs()
 	return
 }
 
-func (s *SlurmConfig) FilterAssert(vrps []VRPJson, vaps []ASPAJson, BRKs []BgpSecKeyJson, log Logger) (
-	ovrps []VRPJson, ovaps []ASPAJson, oBRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) FilterAssert(vrps []VRPJson, vaps []VAPJson, BRKs []BgpSecKeyJson, log Logger) (
+	ovrps []VRPJson, ovaps []VAPJson, oBRKs []BgpSecKeyJson) {
 	//
 	filteredVRPs, removedVRPs := s.ValidationOutputFilters.FilterOnVRPs(vrps)
 	filteredVAPs, removedVAPs := s.ValidationOutputFilters.FilterOnVAPs(vaps, false)

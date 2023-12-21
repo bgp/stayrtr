@@ -156,12 +156,12 @@ func TestJson(t *testing.T) {
 	Ex1 := int64(1627568318)
 	Ex2 := int64(1627575699)
 
-	want := (&prefixfile.VRPList{
+	want := (&prefixfile.RPKIList{
 		Metadata: prefixfile.MetaData{
 			Counts:    2,
 			Buildtime: "2021-07-27T18:56:02Z",
 		},
-		Data: []prefixfile.VRPJson{
+		ROA:  []prefixfile.VRPJson{
 			{Prefix: "1.0.0.0/24",
 				Length:  24,
 				ASN:     float64(13335),

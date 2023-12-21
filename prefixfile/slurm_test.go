@@ -189,7 +189,7 @@ func TestFilterOnBSKs(t *testing.T) {
 	assert.Equal(t, uint32(65005), removed[2].Asn)
 }
 func TestFilterOnVAPs(t *testing.T) {
-	vrps := []ASPAJson{
+	vrps := []VAPJson{
 		{
 			CustomerAsid: 65001,
 			Providers:    []uint32{65002, 65003},
@@ -242,7 +242,7 @@ func TestSlurmEndToEnd(t *testing.T) {
 	}
 
 	finalVRP, finalASPA, finalBgpsec :=
-		config.FilterAssert(vrplist.Data, vrplist.ASPA, vrplist.BgpSecKeys, nil)
+		config.FilterAssert(vrplist.ROA, vrplist.ASPA, vrplist.BgpSecKeys, nil)
 
 	foundAssertVRP := false
 	for _, vrps := range finalVRP {
@@ -285,11 +285,11 @@ func TestSlurmEndToEnd(t *testing.T) {
 	}
 }
 
-func decodeJSON(data []byte) (*VRPList, error) {
+func decodeJSON(data []byte) (*RPKIList, error) {
 	buf := bytes.NewBuffer(data)
 	dec := json.NewDecoder(buf)
 
-	var vrplistjson VRPList
+	var vrplistjson RPKIList
 	err := dec.Decode(&vrplistjson)
 	return &vrplistjson, err
 }

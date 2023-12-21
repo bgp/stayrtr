@@ -74,16 +74,16 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		vrps, exists := e.sdManager.GetCurrentSDs()
+		data, exists := e.sdManager.GetCurrentSDs()
 		if !exists {
 			c.SendInternalError()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Internal error requesting cache (does not exists)", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, data)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent VRPs (current serial %d, session: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent cache (current serial %d, session: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -109,16 +109,16 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 			e.Log.Debugf("%v < No data", c)
 		}
 	} else {
-		vrps, exists := e.sdManager.GetSDsSerialDiff(serialNumber)
+		data, exists := e.sdManager.GetSDsSerialDiff(serialNumber)
 		if !exists {
 			c.SendCacheReset()
 			if e.Log != nil {
 				e.Log.Debugf("%v < Sent cache reset", c)
 			}
 		} else {
-			c.SendSDs(sessionId, serial, vrps)
+			c.SendSDs(sessionId, serial, data)
 			if e.Log != nil {
-				e.Log.Debugf("%v < Sent VRPs (current serial %d, session from client: %d)", c, serial, sessionId)
+				e.Log.Debugf("%v < Sent cache (current serial %d, session from client: %d)", c, serial, sessionId)
 			}
 		}
 	}
@@ -145,7 +145,6 @@ type Server struct {
 	sdCurrent       []SendableData
 	sdCurrentSerial uint32
 	keepDiff        int
-	manualserial    bool
 
 	pduRefreshInterval uint32
 	pduRetryInterval   uint32
@@ -229,22 +228,22 @@ func ComputeDiff(newSDs, prevSDs []SendableData, populateUnchanged bool) (added,
 	newSDsMap := ConvertSDListToMap(newSDs)
 	prevSDsMap := ConvertSDListToMap(prevSDs)
 
-	for _, vrp := range newSDs {
-		_, exists := prevSDsMap[vrp.HashKey()]
+	for _, item := range newSDs {
+		_, exists := prevSDsMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			rcopy.SetFlag(FLAG_ADDED)
 			added = append(added, rcopy)
 		}
 	}
-	for _, vrp := range prevSDs {
-		_, exists := newSDsMap[vrp.HashKey()]
+	for _, item := range prevSDs {
+		_, exists := newSDsMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			rcopy.SetFlag(FLAG_REMOVED)
 			removed = append(removed, rcopy)
 		} else if populateUnchanged {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			unchanged = append(unchanged, rcopy)
 		}
 	}
@@ -257,25 +256,25 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 	diffMap := ConvertSDListToMap(diff)
 	prevSDsMap := ConvertSDListToMap(prevSDs)
 
-	for _, vrp := range prevSDs {
-		_, exists := diffMap[vrp.HashKey()]
+	for _, item := range prevSDs {
+		_, exists := diffMap[item.HashKey()]
 		if !exists {
-			rcopy := vrp.Copy()
+			rcopy := item.Copy()
 			newSDs = append(newSDs, rcopy)
 		}
 	}
-	for _, vrp := range diff {
-		if vrp.GetFlag() == FLAG_ADDED {
-			rcopy := vrp.Copy()
+	for _, item := range diff {
+		if item.GetFlag() == FLAG_ADDED {
+			rcopy := item.Copy()
 			newSDs = append(newSDs, rcopy)
-		} else if vrp.GetFlag() == FLAG_REMOVED {
-			cvrp, exists := prevSDsMap[vrp.HashKey()]
+		} else if item.GetFlag() == FLAG_REMOVED {
+			citem, exists := prevSDsMap[item.HashKey()]
 			if !exists {
-				rcopy := vrp.Copy()
+				rcopy := item.Copy()
 				newSDs = append(newSDs, rcopy)
 			} else {
-				if cvrp == FLAG_REMOVED {
-					rcopy := vrp.Copy()
+				if citem == FLAG_REMOVED {
+					rcopy := item.Copy()
 					newSDs = append(newSDs, rcopy)
 				}
 			}
@@ -285,26 +284,22 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 	return newSDs
 }
 
-func (s *Server) SetManualSerial(v bool) {
-	s.manualserial = v
-}
-
 func (s *Server) GetSessionId() uint16 {
 	return s.sessId
 }
 
 func (s *Server) GetCurrentSDs() ([]SendableData, bool) {
 	s.sdlock.RLock()
-	vrp := s.sdCurrent
+	sd := s.sdCurrent
 	s.sdlock.RUnlock()
-	return vrp, true
+	return sd, true
 }
 
 func (s *Server) GetSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 	s.sdlock.RLock()
-	vrp, ok := s.getSDsSerialDiff(serial)
+	sd, ok := s.getSDsSerialDiff(serial)
 	s.sdlock.RUnlock()
-	return vrp, ok
+	return sd, ok
 }
 
 func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
@@ -312,12 +307,12 @@ func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 		return []SendableData{}, true
 	}
 
-	vrp := make([]SendableData, 0)
+	sd := make([]SendableData, 0)
 	index, ok := s.sdMapSerial[serial]
 	if ok {
-		vrp = s.sdListDiff[index]
+		sd = s.sdListDiff[index]
 	}
-	return vrp, ok
+	return sd, ok
 }
 
 func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
@@ -340,7 +335,7 @@ func (s *Server) GenerateSerial() uint32 {
 
 func (s *Server) generateSerial() uint32 {
 	newserial := s.sdCurrentSerial
-	if !s.manualserial && len(s.sdListSerial) > 0 {
+	if len(s.sdListSerial) > 0 {
 		newserial = s.sdListSerial[len(s.sdListSerial)-1] + 1
 	}
 	return newserial
@@ -351,31 +346,25 @@ func (s *Server) setSerial(serial uint32) {
 }
 
 // This function sets the serial. Function must
-// be called before the VRPs data is added.
+// be called before the cache data is added.
 func (s *Server) SetSerial(serial uint32) {
 	s.sdlock.RLock()
 	defer s.sdlock.RUnlock()
-	//s.vrpListSerial = make([]uint32, 0)
+	//s.sdListSerial = make([]uint32, 0)
 	s.setSerial(serial)
 }
 
-func (s *Server) CountVRPs() int {
+func (s *Server) CountSDs() int {
 	s.sdlock.RLock()
 	defer s.sdlock.RUnlock()
 
 	return len(s.sdCurrent)
 }
 
-func (s *Server) AddData(vrps []SendableData) {
+func (s *Server) AddData(new []SendableData) {
 	s.sdlock.RLock()
 
-	// a slight hack for now, until we have BGPsec/ASPA support
-	vrpsAsSD := make([]SendableData, 0, len(vrps))
-	for _, v := range vrps {
-		vrpsAsSD = append(vrpsAsSD, v.Copy())
-	}
-
-	added, removed, _ := ComputeDiff(vrpsAsSD, s.sdCurrent, false)
+	added, removed, _ := ComputeDiff(new, s.sdCurrent, false)
 	if s.log != nil && s.logverbose {
 		s.log.Debugf("Computed diff: added (%v), removed (%v)", added, removed)
 	} else if s.log != nil {
@@ -401,10 +390,10 @@ func (s *Server) addSerial(serial uint32) []uint32 {
 func (s *Server) AddSDsDiff(diff []SendableData) {
 	s.sdlock.RLock()
 	nextDiff := make([][]SendableData, len(s.sdListDiff))
-	for i, prevVrps := range s.sdListDiff {
-		nextDiff[i] = ApplyDiff(diff, prevVrps)
+	for i, prevSDs := range s.sdListDiff {
+		nextDiff[i] = ApplyDiff(diff, prevSDs)
 	}
-	newVrpCurrent := ApplyDiff(diff, s.sdCurrent)
+	newSDCurrent := ApplyDiff(diff, s.sdCurrent)
 	curserial, _ := s.getCurrentSerial()
 	s.sdlock.RUnlock()
 
@@ -432,7 +421,7 @@ func (s *Server) AddSDsDiff(diff []SendableData) {
 		delete(s.sdMapSerial, removeSerial)
 	}
 	s.sdListDiff = nextDiff
-	s.sdCurrent = newVrpCurrent
+	s.sdCurrent = newSDCurrent
 	s.setSerial(newserial)
 }
 
@@ -1027,8 +1016,8 @@ func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableD
 		SessionId: sessionId,
 	}
 	c.SendPDU(pduBegin)
-	for _, data := range data {
-		c.SendData(data.Copy())
+	for _, item := range data {
+		c.SendData(item.Copy())
 	}
 	pduEnd := &PDUEndOfData{
 		SessionId:    sessionId,
