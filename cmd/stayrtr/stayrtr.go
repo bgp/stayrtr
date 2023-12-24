@@ -353,8 +353,6 @@ var errRPKIJsonFileTooOld = errors.New("RPKI JSON file is older than 24 hours")
 
 // Update the state based on the current slurm file and data.
 func (s *state) updateFromNewState() error {
-	sessid := s.server.GetSessionId()
-
 	vrpsjson := s.lastdata.ROA
 	if vrpsjson == nil {
 		return nil
@@ -391,13 +389,11 @@ func (s *state) updateFromNewState() error {
 	count := len(vrps) + len(brks) + len(vaps)
 
 	log.Infof("New update (%v uniques, %v total prefixes, %v vaps, %v router keys).", len(vrps), count, len(vaps), len(brks))
-	return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
+	return s.applyUpdateFromNewState(vrps, brks, vaps, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 }
 
 // Update the state based on the currently loaded files
 func (s *state) reloadFromCurrentState() error {
-	sessid := s.server.GetSessionId()
-
 	vrpsjson := s.lastdata.ROA
 	if vrpsjson == nil {
 		return nil
@@ -434,13 +430,12 @@ func (s *state) reloadFromCurrentState() error {
 	count := len(vrps) + len(brks) + len(vaps)
 	if s.server.CountSDs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountSDs(), count)
-		return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, brks, vaps, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 	}
 	return nil
 }
 
 func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, vaps []rtr.VAP,
-	sessid uint16,
 	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson []prefixfile.VAPJson,
 	countv4 int, countv6 int) error {
 
@@ -459,7 +454,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 		return nil
 	}
 
-	serial, _ := s.server.GetCurrentSerial(sessid)
+	serial, _ := s.server.GetCurrentSerial()
 	log.Infof("Update added, new serial %v", serial)
 	if s.sendNotifs {
 		log.Debugf("Sending notifications to clients")
@@ -852,7 +847,7 @@ func run() error {
 
 	if *Bind != "" {
 		go func() {
-			sessid := server.GetSessionId()
+			sessid := server.GetSessionId(protoverToLib[*RTRVersion])
 			log.Infof("StayRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
 			err := server.Start(*Bind)
 			if err != nil {

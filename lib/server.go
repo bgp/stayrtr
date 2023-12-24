@@ -44,8 +44,8 @@ type SendableData interface {
 
 // This handles things like ROAs, BGPsec Router keys, ASPA info etc
 type SendableDataManager interface {
-	GetCurrentSerial(uint16) (uint32, bool)
-	GetSessionId() uint16
+	GetCurrentSerial() (uint32, bool)
+	GetSessionId(uint8) uint16
 	GetCurrentSDs() ([]SendableData, bool)
 	GetSDsSerialDiff(uint32) ([]SendableData, bool)
 }
@@ -63,8 +63,8 @@ func (e *DefaultRTREventHandler) RequestCache(c *Client) {
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request Cache", c)
 	}
-	sessionId := e.sdManager.GetSessionId()
-	serial, valid := e.sdManager.GetCurrentSerial(sessionId)
+	sessionId := e.sdManager.GetSessionId(c.GetVersion())
+	serial, valid := e.sdManager.GetCurrentSerial()
 	if !valid {
 		c.SendNoDataError()
 		if e.Log != nil {
@@ -90,7 +90,7 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 	if e.Log != nil {
 		e.Log.Debugf("%v > Request New Version", c)
 	}
-	serverSessionId := e.sdManager.GetSessionId()
+	serverSessionId := e.sdManager.GetSessionId(c.GetVersion())
 	if sessionId != serverSessionId {
 		c.SendCorruptData()
 		if e.Log != nil {
@@ -99,7 +99,7 @@ func (e *DefaultRTREventHandler) RequestNewVersion(c *Client, sessionId uint16, 
 		c.Disconnect()
 		return
 	}
-	serial, valid := e.sdManager.GetCurrentSerial(sessionId)
+	serial, valid := e.sdManager.GetCurrentSerial()
 	if !valid {
 		c.SendNoDataError()
 		if e.Log != nil {
@@ -125,7 +125,7 @@ type Server struct {
 	baseVersion uint8
 	clientlock  *sync.RWMutex
 	clients     []*Client
-	sessId      uint16
+	sessId      []uint16
 	connected   int
 	maxconn     int
 
@@ -166,7 +166,11 @@ type ServerConfiguration struct {
 }
 
 func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler, simpleHandler RTREventHandler) *Server {
-	sessid := GenerateSessionId()
+	sessids := make([]uint16, 0, int(configuration.ProtocolVersion) + 1)
+	s := GenerateSessionId()
+	for i := 0; i <= int(configuration.ProtocolVersion); i++ {
+		sessids = append(sessids, s + uint16(100 * i))
+	}
 
 	refreshInterval := uint32(3600)
 	if configuration.RefreshInterval != 0 {
@@ -189,7 +193,7 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 
 		clientlock:     &sync.RWMutex{},
 		clients:        make([]*Client, 0),
-		sessId:         sessid,
+		sessId:         sessids,
 		maxconn:        configuration.MaxConn,
 		baseVersion:    configuration.ProtocolVersion,
 		enforceVersion: configuration.EnforceVersion,
@@ -277,8 +281,8 @@ func ApplyDiff(diff, prevSDs []SendableData) []SendableData {
 	return newSDs
 }
 
-func (s *Server) GetSessionId() uint16 {
-	return s.sessId
+func (s *Server) GetSessionId(version uint8) uint16 {
+	return s.sessId[version]
 }
 
 func (s *Server) GetCurrentSDs() ([]SendableData, bool) {
@@ -311,7 +315,7 @@ func (s *Server) getSDsSerialDiff(serial uint32) ([]SendableData, bool) {
 	return sd, true
 }
 
-func (s *Server) GetCurrentSerial(sessId uint16) (uint32, bool) {
+func (s *Server) GetCurrentSerial() (uint32, bool) {
 	s.sdlock.RLock()
 	serial, valid := s.getCurrentSerial()
 	s.sdlock.RUnlock()
@@ -406,10 +410,6 @@ func (s *Server) SetMaxConnections(maxconn int) {
 
 func (s *Server) GetMaxConnections() int {
 	return s.maxconn
-}
-
-func (s *Server) SetSessionId(sessId uint16) {
-	s.sessId = sessId
 }
 
 func (s *Server) ClientConnected(c *Client) {
@@ -629,14 +629,11 @@ func (s *Server) GetClientList() []*Client {
 }
 
 func (s *Server) NotifyClientsLatest() {
-	serial, _ := s.GetCurrentSerial(s.sessId)
-	s.NotifyClients(serial)
-}
+	serial, _ := s.GetCurrentSerial()
 
-func (s *Server) NotifyClients(serialNumber uint32) {
 	clients := s.GetClientList()
 	for _, c := range clients {
-		c.Notify(s.sessId, serialNumber)
+		c.Notify(s.GetSessionId(c.GetVersion()), serial)
 	}
 }
 
