@@ -630,16 +630,9 @@ func (s *Server) GetClientList() []*Client {
 
 func (s *Server) NotifyClientsLatest() {
 	serial, _ := s.GetCurrentSerial()
-
 	clients := s.GetClientList()
 	for _, c := range clients {
 		c.Notify(s.GetSessionId(c.GetVersion()), serial)
-	}
-}
-
-func (s *Server) SendPDU(pdu PDU) {
-	for _, client := range s.clients {
-		client.SendPDU(pdu)
 	}
 }
 
