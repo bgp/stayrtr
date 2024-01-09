@@ -203,16 +203,17 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 		sessId:         sessid,
 		maxconn:        configuration.MaxConn,
 		baseVersion:    configuration.ProtocolVersion,
-		enforceVersion: configuration.EnforceVersion,
-		handler:        handler,
-		simpleHandler:  simpleHandler,
 
+		enforceVersion: configuration.EnforceVersion,
 		disableBGPSec:	configuration.DisableBGPSec,
 		disableASPA:	configuration.DisableASPA,
 
 		pduRefreshInterval: refreshInterval,
 		pduRetryInterval:   retryInterval,
 		pduExpireInterval:  expireInterval,
+
+		handler:        handler,
+		simpleHandler:  simpleHandler,
 
 		log:        configuration.Log,
 		logverbose: configuration.LogVerbose,
