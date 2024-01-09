@@ -85,6 +85,9 @@ var (
 	MaxConn         = flag.Int("maxconn", 0, "Max simultaneous connections (0 to disable limit)")
 	SendNotifs      = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
 
+	DisableBGPSec	= flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+	DisableASPA	= flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
+
 	Slurm        = flag.String("slurm", "", "Slurm configuration file (filters and assertions)")
 	SlurmRefresh = flag.Bool("slurm.refresh", true, "Refresh along the cache (disable with -slurm.refresh=false)")
 
@@ -755,6 +758,9 @@ func run() error {
 		RefreshInterval: uint32(*RefreshRTR),
 		RetryInterval:   uint32(*RetryRTR),
 		ExpireInterval:  uint32(*ExpireRTR),
+
+		DisableBGPSec:	 *DisableBGPSec,
+		DisableASPA:	 *DisableASPA,
 	}
 
 	var me *metricsEvent

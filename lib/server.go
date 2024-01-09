@@ -3,7 +3,6 @@ package rtrlib
 import (
 	"bytes"
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -134,6 +133,8 @@ type Server struct {
 	handler        RTRServerEventHandler
 	simpleHandler  RTREventHandler
 	enforceVersion bool
+	disableBGPSec  bool
+	disableASPA    bool
 
 	sdlock          *sync.RWMutex
 	sdListDiff      [][]SendableData
@@ -156,6 +157,9 @@ type ServerConfiguration struct {
 	KeepDifference  int
 
 	SessId int
+
+	DisableBGPSec   bool
+	DisableASPA     bool
 
 	RefreshInterval uint32
 	RetryInterval   uint32
@@ -199,6 +203,9 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 		enforceVersion: configuration.EnforceVersion,
 		handler:        handler,
 		simpleHandler:  simpleHandler,
+
+		disableBGPSec:	configuration.DisableBGPSec,
+		disableASPA:	configuration.DisableASPA,
 
 		pduRefreshInterval: refreshInterval,
 		pduRetryInterval:   retryInterval,
@@ -479,8 +486,6 @@ func (s *Server) Start(bind string) error {
 	return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 }
 
-var DisableBGPSec = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
-var DisableASPA = flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
 var EnableNODELAY = flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
@@ -497,10 +502,10 @@ func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 		client.SetVersion(s.baseVersion)
 	}
 	client.SetIntervals(s.pduRefreshInterval, s.pduRetryInterval, s.pduExpireInterval)
-	if *DisableBGPSec {
+	if s.disableBGPSec {
 		client.DisableBGPsec()
 	}
-	if *DisableASPA {
+	if s.disableASPA {
 		client.DisableASPA()
 	}
 	go client.Start()
