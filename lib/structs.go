@@ -386,7 +386,7 @@ func (pdu *PDUEndOfData) Write(wr io.Writer) {
 	if pdu.Version == PROTOCOL_VERSION_0 {
 		binary.Write(wr, binary.BigEndian, uint32(12))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
-	} else if pdu.Version == PROTOCOL_VERSION_1 || pdu.Version == PROTOCOL_VERSION_2 {
+	} else {
 		binary.Write(wr, binary.BigEndian, uint32(24))
 		binary.Write(wr, binary.BigEndian, pdu.SerialNumber)
 		binary.Write(wr, binary.BigEndian, pdu.RefreshInterval)
