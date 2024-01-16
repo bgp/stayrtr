@@ -55,10 +55,10 @@ var (
 	RefreshRTR = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR   = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR  = flag.Int("rtr.expire", 7200, "Expire interval")
-	SendNotifs = flag.Bool("rtr.notifications", true, "Send notifications to clients (disable with -notifications=false)")
-	EnforceVersion  = flag.Bool("rtr.enforce.version", false, "Disable version negotiation")
-	DisableBGPSec	= flag.Bool("rtr.disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
-	DisableASPA	= flag.Bool("rtr.disable.aspa", false, "Disable sending out ASPA objects")
+	SendNotifs = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
+	EnforceVersion  = flag.Bool("enforce.version", false, "Disable version negotiation")
+	DisableBGPSec	= flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+	DisableASPA	= flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
 
 
 	Bind = flag.String("bind", ":8282", "Bind address")
