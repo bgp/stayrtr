@@ -57,6 +57,11 @@ var (
 	RefreshRTR = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR   = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR  = flag.Int("rtr.expire", 7200, "Expire interval")
+	SendNotifs = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
+	EnforceVersion  = flag.Bool("enforce.version", false, "Disable version negotiation")
+	DisableBGPSec	= flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+	DisableASPA	= flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
+
 
 	Bind = flag.String("bind", ":8282", "Bind address")
 
@@ -85,7 +90,6 @@ var (
 	Mime            = flag.String("mime", "application/json", "Accept setting format (some servers may prefer text/json)")
 	RefreshInterval = flag.Int("refresh", 600, "Refresh interval in seconds")
 	MaxConn         = flag.Int("maxconn", 0, "Max simultaneous connections (0 to disable limit)")
-	SendNotifs      = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
 
 	Slurm        = flag.String("slurm", "", "Slurm configuration file (filters and assertions)")
 	SlurmRefresh = flag.Bool("slurm.refresh", true, "Refresh along the cache (disable with -slurm.refresh=false)")
@@ -739,6 +743,10 @@ func run() error {
 		RefreshInterval: uint32(*RefreshRTR),
 		RetryInterval:   uint32(*RetryRTR),
 		ExpireInterval:  uint32(*ExpireRTR),
+
+		EnforceVersion:  *EnforceVersion,
+		DisableBGPSec:   *DisableBGPSec,
+		DisableASPA:     *DisableASPA,
 	}
 
 	var me *metricsEvent
