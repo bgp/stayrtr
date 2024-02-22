@@ -143,6 +143,12 @@ var (
 		},
 		[]string{"type"},
 	)
+	CurrentSerial = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "rtr_serial",
+			Help: "Current serial.",
+		},
+	)
 
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
@@ -159,6 +165,7 @@ func initMetrics() {
 	prometheus.MustRegister(RefreshStatusCode)
 	prometheus.MustRegister(ClientsMetric)
 	prometheus.MustRegister(PDUsRecv)
+	prometheus.MustRegister(CurrentSerial)
 }
 
 func metricHTTP() {
@@ -453,6 +460,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 		log.Debugf("Sending notifications to clients")
 		s.server.NotifyClientsLatest()
 	}
+	CurrentSerial.Set(float64(serial))
 
 	s.lockJson.Lock()
 	s.exported = prefixfile.RPKIList{
