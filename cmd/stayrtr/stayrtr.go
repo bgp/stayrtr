@@ -507,21 +507,21 @@ func (s *state) updateFile(file string) (bool, error) {
 	}
 
 	hsum := newSHA256(data)
-	if s.lasthash != nil {
-		cres := bytes.Compare(s.lasthash, hsum)
+	if s.lasthashCache != nil {
+		cres := bytes.Compare(s.lasthashCache, hsum)
 		if cres == 0 {
 			return false, IdenticalFile{File: file}
 		}
 	}
 
-	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthash, hsum)
+	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
 
 	rpkilistjson, err := decodeJSON(data)
 	if err != nil {
 		return false, err
 	}
 
-	s.lasthash = hsum
+	s.lasthashCache = hsum
 	s.lastchange = time.Now().UTC()
 	s.lastdata = rpkilistjson
 
@@ -541,12 +541,21 @@ func (s *state) updateSlurm(file string) (bool, error) {
 		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
+	hsum := newSHA256(data)
+	if s.lasthashSlurm != nil {
+		cres := bytes.Compare(s.lasthashSlurm, hsum)
+		if cres == 0 {
+			return false, IdenticalFile{File: file}
+		}
+	}
+
 	buf := bytes.NewBuffer(data)
 
 	slurm, err := prefixfile.DecodeJSONSlurm(buf)
 	if err != nil {
 		return false, err
 	}
+	s.lasthashSlurm = hsum
 	s.slurm = slurm
 	return true, nil
 }
@@ -654,7 +663,8 @@ func (s *state) exporter(wr http.ResponseWriter, r *http.Request) {
 
 type state struct {
 	lastdata   *prefixfile.RPKIList
-	lasthash   []byte
+	lasthashCache   []byte
+	lasthashSlurm   []byte
 	lastchange time.Time
 	lastts     time.Time
 	sendNotifs bool
