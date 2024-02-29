@@ -200,7 +200,7 @@ func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs, BGPsec Keys and ASPA records
 func processData(vrplistjson []prefixfile.VRPJson,
 	brklistjson []prefixfile.BgpSecKeyJson,
-	aspajson []prefixfile.VAPJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int, int) {
+	aspajson []prefixfile.VAPJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int) {
 	filterDuplicates := make(map[string]struct{})
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -331,7 +331,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		})
 	}
 
-	return vrplist, brklist, aspalist, countv4 + countv6, countv4, countv6
+	return vrplist, brklist, aspalist, countv4, countv6
 }
 
 type IdenticalFile struct {
@@ -380,7 +380,8 @@ func (s *state) updateFromNewState() error {
 		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	vrps, brks, vaps, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	count := len(vrps) + len(brks) + len(vaps)
 
 	log.Infof("New update (%v uniques, %v total prefixes, %v vaps, %v router keys).", len(vrps), count, len(vaps), len(brks))
 	return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
@@ -422,7 +423,8 @@ func (s *state) reloadFromCurrentState() error {
 		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, vaps, count, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	vrps, brks, vaps, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	count := len(vrps) + len(brks) + len(vaps)
 	if s.server.CountSDs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountSDs(), count)
 		return s.applyUpdateFromNewState(vrps, brks, vaps, sessid, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
