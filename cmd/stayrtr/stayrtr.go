@@ -445,10 +445,13 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 	for _, v := range vaps {
 		SDs = append(SDs, v.Copy())
 	}
-	s.server.AddData(SDs)
+	if (s.server.AddData(SDs) == false) {
+		log.Info("No difference to current cache")
+		return nil
+	}
 
 	serial, _ := s.server.GetCurrentSerial(sessid)
-	log.Infof("Updated added, new serial %v", serial)
+	log.Infof("Update added, new serial %v", serial)
 	if s.sendNotifs {
 		log.Debugf("Sending notifications to clients")
 		s.server.NotifyClientsLatest()
