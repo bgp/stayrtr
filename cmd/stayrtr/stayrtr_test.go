@@ -100,7 +100,7 @@ func TestProcessData(t *testing.T) {
 			Expires: &ExpiredTime,
 		},
 	)
-	got, _, _, count, v4count, v6count := processData(stuff, nil, nil)
+	got, _, _, v4count, v6count := processData(stuff, nil, nil)
 	want := []rtr.VRP{
 		{
 			Prefix: netip.MustParsePrefix("2001:db8::/32"),
@@ -118,8 +118,8 @@ func TestProcessData(t *testing.T) {
 			ASN:    123,
 		},
 	}
-	if count != 3 || v4count != 2 || v6count != 1 {
-		t.Errorf("Wanted count = 3, v4count = 2, v6count = 1, but got %d, %d, %d", count, v4count, v6count)
+	if v4count != 2 || v6count != 1 {
+		t.Errorf("Wanted v4count = 2, v6count = 1, but got %d, %d", v4count, v6count)
 	}
 
 	opts := []cmp.Option{
