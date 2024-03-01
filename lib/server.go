@@ -361,7 +361,7 @@ func (s *Server) CountSDs() int {
 	return len(s.sdCurrent)
 }
 
-func (s *Server) AddData(new []SendableData) {
+func (s *Server) AddData(new []SendableData) bool {
 	s.sdlock.RLock()
 
 	added, removed, _ := ComputeDiff(new, s.sdCurrent, false)
@@ -373,7 +373,12 @@ func (s *Server) AddData(new []SendableData) {
 	curDiff := append(added, removed...)
 	s.sdlock.RUnlock()
 
-	s.AddSDsDiff(curDiff)
+	if len(curDiff) == 0 {
+		return false
+	} else {
+		s.AddSDsDiff(curDiff)
+		return true
+	}
 }
 
 func (s *Server) addSerial(serial uint32) []uint32 {
