@@ -519,7 +519,7 @@ func (s *state) updateFile(file string) (bool, error) {
 		}
 	}
 
-	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
+	log.Debugf("new cache file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
 	s.lasthashCache = hsum
 
 	rpkilistjson, err := decodeJSON(data)
@@ -553,7 +553,7 @@ func (s *state) updateSlurm(file string) (bool, error) {
 			return false, IdenticalFile{File: file}
 		}
 	}
-	log.Infof("new slurm file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
+	log.Debugf("new slurm file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
 	s.lasthashSlurm = hsum
 
 	buf := bytes.NewBuffer(data)
