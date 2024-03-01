@@ -445,7 +445,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, va
 	for _, v := range vaps {
 		SDs = append(SDs, v.Copy())
 	}
-	if (s.server.AddData(SDs) == false) {
+	if !s.server.AddData(SDs) {
 		log.Info("No difference to current cache")
 		return nil
 	}

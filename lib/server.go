@@ -373,7 +373,7 @@ func (s *Server) AddData(new []SendableData) bool {
 	curDiff := append(added, removed...)
 	s.sdlock.RUnlock()
 
-	if (len(curDiff) == 0) {
+	if len(curDiff) == 0 {
 		return false
 	} else {
 		s.AddSDsDiff(curDiff)
