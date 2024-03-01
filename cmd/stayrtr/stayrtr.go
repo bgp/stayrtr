@@ -520,13 +520,13 @@ func (s *state) updateFile(file string) (bool, error) {
 	}
 
 	log.Infof("new cache file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
+	s.lasthashCache = hsum
 
 	rpkilistjson, err := decodeJSON(data)
 	if err != nil {
 		return false, err
 	}
 
-	s.lasthashCache = hsum
 	s.lastchange = time.Now().UTC()
 	s.lastdata = rpkilistjson
 
@@ -553,6 +553,8 @@ func (s *state) updateSlurm(file string) (bool, error) {
 			return false, IdenticalFile{File: file}
 		}
 	}
+	log.Infof("new slurm file: Updating sha256 hash %x -> %x", s.lasthashCache, hsum)
+	s.lasthashSlurm = hsum
 
 	buf := bytes.NewBuffer(data)
 
@@ -560,7 +562,6 @@ func (s *state) updateSlurm(file string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	s.lasthashSlurm = hsum
 	s.slurm = slurm
 	return true, nil
 }
@@ -667,12 +668,12 @@ func (s *state) exporter(wr http.ResponseWriter, r *http.Request) {
 }
 
 type state struct {
-	lastdata   *prefixfile.RPKIList
-	lasthashCache   []byte
-	lasthashSlurm   []byte
-	lastchange time.Time
-	lastts     time.Time
-	sendNotifs bool
+	lastdata      *prefixfile.RPKIList
+	lasthashCache []byte
+	lasthashSlurm []byte
+	lastchange    time.Time
+	lastts        time.Time
+	sendNotifs    bool
 
 	fetchConfig *utils.FetchConfig
 
