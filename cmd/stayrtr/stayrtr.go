@@ -134,7 +134,7 @@ var (
 			Name: "rtr_clients",
 			Help: "Number of clients connected.",
 		},
-		[]string{"bind"},
+		[]string{"bind", "remote_ip"},
 	)
 	PDUsRecv = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -693,11 +693,11 @@ type metricsEvent struct {
 }
 
 func (m *metricsEvent) ClientConnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
+	ClientsMetric.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Inc()
 }
 
 func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
+	ClientsMetric.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Dec()
 }
 
 func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
