@@ -136,12 +136,19 @@ var (
 		},
 		[]string{"bind", "remote_ip"},
 	)
+	ClientsFlaps = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "rtr_client_flaps",
+			Help: "Total count of connect/disconnect events per local and remote IP.",
+		},
+		[]string{"bind", "remote_ip"},
+	)
 	PDUsRecv = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "rtr_pdus",
 			Help: "PDU received.",
 		},
-		[]string{"type"},
+		[]string{"type", "remote_ip"},
 	)
 	CurrentSerial = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -164,6 +171,7 @@ func initMetrics() {
 	prometheus.MustRegister(LastRefresh)
 	prometheus.MustRegister(RefreshStatusCode)
 	prometheus.MustRegister(ClientsMetric)
+	prometheus.MustRegister(ClientsFlaps)
 	prometheus.MustRegister(PDUsRecv)
 	prometheus.MustRegister(CurrentSerial)
 }
@@ -694,10 +702,12 @@ type metricsEvent struct {
 
 func (m *metricsEvent) ClientConnected(c *rtr.Client) {
 	ClientsMetric.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Inc()
+	ClientsFlaps.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Add(1)
 }
 
 func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
 	ClientsMetric.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Dec()
+	ClientsFlaps.WithLabelValues(c.GetLocalAddress().String(), c.GetRemoteAddress().String()).Add(1)
 }
 
 func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
@@ -707,7 +717,9 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 				rtr.TypeToString(
 					pdu.GetType()),
 				" ",
-				"_", -1))).Inc()
+				"_", -1)),
+		c.GetRemoteAddress().String(),
+	).Inc()
 }
 
 func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int, aspaCount int) {
