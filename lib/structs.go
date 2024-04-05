@@ -19,7 +19,8 @@ type Logger interface {
 }
 
 const (
-	messageMaxSize = 2048
+	// arbitrary threshold. First power of two over 4*|asns in DFZ|
+	messageMaxSize = 1048576
 
 	PROTOCOL_VERSION_0 = 0
 	PROTOCOL_VERSION_1 = 1
