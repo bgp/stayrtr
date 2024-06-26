@@ -19,7 +19,16 @@ type Logger interface {
 }
 
 const (
-	messageMaxSize = 2048
+	// We use the size of the largest sensible PDU.
+	//
+	// We ignore the theoretically unbounded length of SKIs for router keys.
+	// RPs should validate that this has the correct length.
+	//
+	// maximum size of ASPA PDU payload:
+	// * 2^16 providers * 32bit = 262144 bytes
+	// * length is inclusive of header: 8 bytes
+	// * flags/afi flags/provider as/customer AS: 16 bytes
+	messageMaxSize = 262168
 
 	PROTOCOL_VERSION_0 = 0
 	PROTOCOL_VERSION_1 = 1
