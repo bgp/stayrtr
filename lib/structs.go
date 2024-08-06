@@ -19,6 +19,8 @@ type Logger interface {
 }
 
 const (
+	APP_VERSION = "0.6.0"
+
 	// We use the size of the largest sensible PDU.
 	//
 	// We ignore the theoretically unbounded length of SKIs for router keys.

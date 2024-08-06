@@ -44,9 +44,7 @@ const (
 )
 
 var (
-	version    = ""
-	buildinfos = ""
-	AppVersion = "StayRTR " + version + " " + buildinfos
+	AppVersion = "StayRTR " + rtr.APP_VERSION
 
 	MetricsAddr = flag.String("metrics.addr", ":9847", "Metrics address")
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")

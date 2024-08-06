@@ -42,9 +42,7 @@ const (
 type thresholds []int64
 
 var (
-	version    = ""
-	buildinfos = ""
-	AppVersion = "RTRmon " + version + " " + buildinfos
+	AppVersion = "RTRmon " + rtr.APP_VERSION
 	//go:embed index.html.tmpl
 	IndexTemplate string
 

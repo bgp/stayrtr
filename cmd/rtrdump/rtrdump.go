@@ -27,9 +27,7 @@ const (
 )
 
 var (
-	version    = ""
-	buildinfos = ""
-	AppVersion = "RTRdump " + version + " " + buildinfos
+	AppVersion = "RTRdump " + rtr.APP_VERSION
 
 	Connect = flag.String("connect", "127.0.0.1:8282", "Connection address")
 	OutFile = flag.String("file", "output.json", "Output file")
