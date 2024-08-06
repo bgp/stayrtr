@@ -53,7 +53,7 @@ var (
 
 	ExportPath = flag.String("export.path", "/rpki.json", "Export path")
 
-	RTRVersion = flag.Int("protocol", 0, "RTR protocol version. Default is version 0 (RFC 6810)")
+	RTRVersion = flag.Int("protocol", 1, "RTR protocol version. Default is version 0 (RFC 6810)")
 	RefreshRTR = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR   = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR  = flag.Int("rtr.expire", 7200, "Expire interval")
