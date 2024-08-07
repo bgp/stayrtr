@@ -59,6 +59,7 @@ var (
 	EnforceVersion  = flag.Bool("enforce.version", false, "Disable version negotiation")
 	DisableBGPSec	= flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
 	DisableASPA	= flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
+	EnableNODELAY	= flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
 
 	Bind = flag.String("bind", ":8282", "Bind address")
@@ -763,6 +764,7 @@ func run() error {
 		EnforceVersion:  *EnforceVersion,
 		DisableBGPSec:   *DisableBGPSec,
 		DisableASPA:     *DisableASPA,
+		EnableNODELAY:     *EnableNODELAY,
 	}
 
 	var me *metricsEvent
