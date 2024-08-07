@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"sort"
 )
 
 type Logger interface {
@@ -559,7 +560,15 @@ func (pdu *PDUASPA) Write(wr io.Writer) {
 	binary.Write(wr, binary.BigEndian, uint8(0))
 	binary.Write(wr, binary.BigEndian, uint32(12 + (len(pdu.ProviderASNumbers)*4)))
 	binary.Write(wr, binary.BigEndian, uint32(pdu.CustomerASNumber))
+
+	var Providers []int
 	for _, pasn := range pdu.ProviderASNumbers {
+		Providers = append(Providers, int(pasn))
+	}
+
+	sort.Ints(Providers)
+
+	for _, pasn := range Providers {
 		binary.Write(wr, binary.BigEndian, uint32(pasn))
 	}
 }
@@ -784,14 +793,23 @@ func Decode(rdr io.Reader) (PDU, error) {
 
 		PASNs := make([]uint32, 0)
 		rbuf := bytes.NewReader(toread[4:])
+		var prev_asn uint32
+		var asn uint32
 		for i := 0; i < int((length - 12) / 4); i++ {
-			var asn uint32
+			if i == 0 {
+				prev_asn = asn
+			}
 			err := binary.Read(rbuf, binary.BigEndian, &asn)
 			if err != nil {
 				return nil, err
 			}
 			PASNs = append(PASNs, asn)
-			// XXX: check numeric ordering
+			if i > 0 {
+				if !(asn > prev_asn) {
+					return nil, fmt.Errorf("Sorting issue in ASPA Providers: %d > %d", asn, prev_asn)
+				}
+				prev_asn = asn
+			}
 		}
 
 		return &PDUASPA{
