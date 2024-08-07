@@ -1066,24 +1066,13 @@ func (c *Client) SendData(sd SendableData) {
 			return
 		}
 
-		pdu4 := &PDUASPA{
+		pdu := &PDUASPA{
 			Version:           c.version,
 			Flags:             t.Flags,
-			AFIFlags:          AFI_IPv4,
-			ProviderASCount:   uint16(len(t.Providers)),
 			CustomerASNumber:  t.CustomerASN,
 			ProviderASNumbers: t.Providers,
 		}
-		pdu6 := &PDUASPA{
-			Version:           c.version,
-			Flags:             t.Flags,
-			AFIFlags:          AFI_IPv6,
-			ProviderASCount:   uint16(len(t.Providers)),
-			CustomerASNumber:  t.CustomerASN,
-			ProviderASNumbers: t.Providers,
-		}
-		c.SendPDU(pdu4)
-		c.SendPDU(pdu6)
+		c.SendPDU(pdu)
 	}
 }
 
