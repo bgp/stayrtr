@@ -141,7 +141,7 @@ func TestASPAEncodeDecode(t *testing.T) {
 	outputPdu, err := Decode(buf)
 
 	if err != nil {
-//		t.FailNow()
+		t.FailNow()
 	}
 
 	orig := fmt.Sprintf("%#v", p)
