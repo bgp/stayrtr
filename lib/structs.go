@@ -600,7 +600,7 @@ func Decode(rdr io.Reader) (PDU, error) {
 	}
 
 	if length < 8 {
-		return nil, fmt.Errorf("wrong length: %d < 8", length)
+		return nil, fmt.Errorf("wrong PDU length: %d < 8", length)
 	}
 	if length > messageMaxSize {
 		return nil, fmt.Errorf("PDU too large: %d > %d", length, messageMaxSize)
@@ -655,8 +655,8 @@ func Decode(rdr io.Reader) (PDU, error) {
 			SessionId: sessionId_or_flags,
 		}, nil
 	case PDU_ID_IPV4_PREFIX:
-		if len(toread) != 12 {
-			return nil, fmt.Errorf("wrong length for IPv4 Prefix PDU: %d != 12", len(toread))
+		if length != 20 {
+			return nil, fmt.Errorf("wrong length for IPv4 Prefix PDU: %d != 20", length)
 		}
 
 		prefixLen := int(toread[1])
@@ -676,8 +676,8 @@ func Decode(rdr io.Reader) (PDU, error) {
 			Prefix:  netip.PrefixFrom(addr, prefixLen),
 		}, nil
 	case PDU_ID_IPV6_PREFIX:
-		if len(toread) != 24 {
-			return nil, fmt.Errorf("wrong length for IPv6 Prefix PDU: %d != 24", len(toread))
+		if length != 32 {
+			return nil, fmt.Errorf("wrong length for IPv6 Prefix PDU: %d != 32", length)
 		}
 
 		prefixLen := int(toread[1])
@@ -697,8 +697,8 @@ func Decode(rdr io.Reader) (PDU, error) {
 			Prefix:  netip.PrefixFrom(addr, prefixLen),
 		}, nil
 	case PDU_ID_END_OF_DATA:
-		if len(toread) != 4 && len(toread) != 16 {
-			return nil, fmt.Errorf("wrong length for End of Data PDU: %d != 4 or != 16", len(toread))
+		if length != 12 && length != 24 {
+			return nil, fmt.Errorf("wrong length for End of Data PDU: %d != 12 or != 24", length)
 		}
 
 		var serial uint32
@@ -724,16 +724,16 @@ func Decode(rdr io.Reader) (PDU, error) {
 			ExpireInterval:  expireInterval,
 		}, nil
 	case PDU_ID_CACHE_RESET:
-		if len(toread) != 0 {
-			return nil, fmt.Errorf("wrong length for Cache Reset PDU: %d != 0", len(toread))
+		if length != 8 {
+			return nil, fmt.Errorf("wrong length for Cache Reset PDU: %d != 8", length)
 		}
 
 		return &PDUCacheReset{
 			Version: pver,
 		}, nil
 	case PDU_ID_ROUTER_KEY:
-		if len(toread) < 28 {
-			return nil, fmt.Errorf("wrong length for Router Key PDU: %d < 28", len(toread))
+		if length < 28 {
+			return nil, fmt.Errorf("wrong length for Router Key PDU: %d < 28", length)
 		}
 
 		asn := binary.BigEndian.Uint32(toread[20:24])
@@ -750,8 +750,8 @@ func Decode(rdr io.Reader) (PDU, error) {
 			SubjectPublicKeyInfo: spki,
 		}, nil
 	case PDU_ID_ERROR_REPORT:
-		if len(toread) < 8 {
-			return nil, fmt.Errorf("wrong length for Error Report PDU: %d < 8", len(toread))
+		if length < 24 {
+			return nil, fmt.Errorf("wrong length for Error Report PDU: %d < 24", length)
 		}
 
 		lenPdu := binary.BigEndian.Uint32(toread[0:4])
@@ -776,8 +776,8 @@ func Decode(rdr io.Reader) (PDU, error) {
 			ErrorMsg:  errMsg,
 		}, nil
 	case PDU_ID_ASPA:
-		if len(toread) < 8 {
-			return nil, fmt.Errorf("wrong length for ASPA PDU: %d < 8", len(toread))
+		if length < 12 {
+			return nil, fmt.Errorf("wrong length for ASPA PDU: %d < 12", length)
 		}
 
 		CASN := binary.BigEndian.Uint32(toread[0:4])
