@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
-	"sort"
 )
 
 type Logger interface {
@@ -561,14 +560,7 @@ func (pdu *PDUASPA) Write(wr io.Writer) {
 	binary.Write(wr, binary.BigEndian, uint32(12 + (len(pdu.ProviderASNumbers)*4)))
 	binary.Write(wr, binary.BigEndian, uint32(pdu.CustomerASNumber))
 
-	var Providers []int
 	for _, pasn := range pdu.ProviderASNumbers {
-		Providers = append(Providers, int(pasn))
-	}
-
-	sort.Ints(Providers)
-
-	for _, pasn := range Providers {
 		binary.Write(wr, binary.BigEndian, uint32(pasn))
 	}
 }
