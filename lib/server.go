@@ -135,6 +135,7 @@ type Server struct {
 	enforceVersion bool
 	disableBGPSec  bool
 	disableASPA    bool
+	enableNODELAY  bool
 
 	sdlock          *sync.RWMutex
 	sdListDiff      [][]SendableData
@@ -158,8 +159,9 @@ type ServerConfiguration struct {
 
 	SessId int
 
-	DisableBGPSec   bool
-	DisableASPA     bool
+	DisableBGPSec	bool
+	DisableASPA	bool
+	EnableNODELAY	bool
 
 	RefreshInterval uint32
 	RetryInterval   uint32
@@ -487,10 +489,8 @@ func (s *Server) Start(bind string) error {
 	return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 }
 
-var EnableNODELAY = flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
-
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
-	if !*EnableNODELAY {
+	if !s.enableNODELAY {
 		tc, ok := tcpconn.(*net.TCPConn)
 		if ok {
 			tc.SetNoDelay(false)
