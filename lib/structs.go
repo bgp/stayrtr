@@ -29,7 +29,7 @@ const (
 	// Maximum size of ASPA PDU payload:
 	// * header + length field: 8 bytes
 	// * Customer ASID: 4 bytes
-	// * 10,001 providers * 32bit = 80,008 bytes
+	// * 20,002 providers * 32bit = 80,008 bytes
 	messageMaxSize = 80020
 
 	PROTOCOL_VERSION_0 = 0
@@ -603,7 +603,7 @@ func Decode(rdr io.Reader) (PDU, error) {
 		return nil, fmt.Errorf("wrong length: %d < 8", length)
 	}
 	if length > messageMaxSize {
-		return nil, fmt.Errorf("wrong length: %d > %d", length, messageMaxSize)
+		return nil, fmt.Errorf("PDU too large: %d > %d", length, messageMaxSize)
 	}
 
 	toread := make([]byte, length - 8)
