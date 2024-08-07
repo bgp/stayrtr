@@ -107,6 +107,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			Pubkey: pdu.SubjectPublicKeyInfo,
 			Ski:    skiHex,
 		}
+		c.Data.Metadata.CountBgpSecKeys++
 		c.Data.BgpSecKeys = append(c.Data.BgpSecKeys, rj)
 
 		if *LogDataPDU {
@@ -122,6 +123,7 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			Providers:    pdu.ProviderASNumbers,
 		}
 
+		c.Data.Metadata.CountASPAs++
 		c.Data.ASPA = append(c.Data.ASPA, aj)
 
 		if *LogDataPDU {
