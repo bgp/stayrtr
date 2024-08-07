@@ -329,8 +329,8 @@ func processData(vrplistjson []prefixfile.VRPJson,
 			}
 		}
 
-		// Ensure that these are sorted, otherwise they
-		// don't hash right.
+		// Ensure that Providers are sorted
+		// Required by RFC and also otherwise they don't hash right.
 		sort.Slice(v.Providers, func(i, j int) bool {
 			return v.Providers[i] < v.Providers[j]
 		})
