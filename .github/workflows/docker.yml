@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Get short SHA from commit hash
         id: shacalc
-        run: echo "::set-output name=sha8::$(echo ${GITHUB_SHA} | cut -c1-8)"
+        run: echo "sha8=${GITHUB_SHA:0:8}" >> $GITHUB_OUTPUT
 
       - name: Check Out Repo
         uses: actions/checkout@v4
