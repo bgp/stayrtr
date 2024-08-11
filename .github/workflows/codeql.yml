@@ -13,7 +13,7 @@ jobs:
     steps:
 
     - name: Set latest stable go version
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v5
       with:
         go-version: 'stable'
 
