@@ -1,14 +1,14 @@
 EXTENSION ?= 
 DIST_DIR ?= dist/
 GOOS ?= linux
-ARCH ?= $(shell uname -m)
+GOARCH ?= x86_64
+ARCH ?= $(GOARCH)
 BUILDINFOSDET ?= 
 
 DOCKER_REPO   := rpki/
 STAYRTR_NAME    := stayrtr
 STAYRTR_VERSION := $(shell git describe --tags $(git rev-list --tags --max-count=1))
 VERSION_PKG   := $(shell echo $(STAYRTR_VERSION) | sed 's/^v//g')
-ARCH          := x86_64
 LICENSE       := BSD-3
 URL           := https://github.com/bgp/stayrtr
 DESCRIPTION   := StayRTR: a RPKI-to-Router server
