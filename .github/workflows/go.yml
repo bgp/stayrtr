@@ -28,23 +28,28 @@ jobs:
     - name: Build
       run: |
         GOOS=linux make build-stayrtr
+        GOOS=linux GOARCH=arm64 make build-stayrtr
         GOOS=darwin make build-stayrtr
         GOOS=windows EXTENSION=.exe make build-stayrtr
         GOOS=linux make build-rtrdump
+        GOOS=linux GOARCH=arm64 make build-rtrdump
         GOOS=darwin make build-rtrdump
         GOOS=windows EXTENSION=.exe make build-rtrdump
         GOOS=linux make build-rtrmon
+        GOOS=linux GOARCH=arm64 make build-rtrmon
         GOOS=darwin make build-rtrmon
         GOOS=windows EXTENSION=.exe make build-rtrmon
-    
+
     - name: Install fpm
       run: |
         sudo apt-get update
         sudo apt-get install -y rpm ruby ruby-dev
         sudo gem install fpm
-          
+
     - name: Package
-      run: make package-deb-stayrtr package-rpm-stayrtr
+      run: |
+        make package-deb-stayrtr package-rpm-stayrtr
+        GOARCH=arm64 make package-deb-stayrtr package-rpm-stayrtr
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
