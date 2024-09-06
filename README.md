@@ -21,7 +21,7 @@ Special thanks for support to the Route Server Support Foundation [RSSF](https:/
 
 ## Features of the server
 
-* Dissemination of validated ROA, BGPsec, and ASPA payloads
+* Dissemination of validated ROA and BGPsec payloads
 * Refreshes a JSON list of prefixes
 * Automatic expiration of outdated information (when using JSON produced by [rpki-client](https://www.rpki-client.org))
 * Prometheus metrics

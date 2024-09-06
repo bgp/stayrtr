@@ -126,30 +126,3 @@ func TestRouterKeyEncodeDecode(t *testing.T) {
 		t.FailNow()
 	}
 }
-
-func TestASPAEncodeDecode(t *testing.T) {
-	p := &PDUASPA{
-		Version:           1,
-		Flags:             1,
-		AFIFlags:          1,
-		ProviderASCount:   2,
-		CustomerASNumber:  64497,
-		ProviderASNumbers: []uint32{64498, 64499},
-	}
-
-	buf := bytes.NewBuffer(nil)
-	p.Write(buf)
-
-	outputPdu, err := Decode(buf)
-
-	if err != nil {
-		t.FailNow()
-	}
-
-	orig := fmt.Sprintf("%#v", p)
-	decode := fmt.Sprintf("%#v", outputPdu)
-	if orig != decode {
-		t.Fatalf("%s\n is not\n%s", orig, decode)
-		t.FailNow()
-	}
-}

@@ -1,4 +1,4 @@
-// rfc8416 and draft-sidrops-aspa-slurm
+// rfc8416
 
 package prefixfile
 
@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"strings"
 )
 
 type SlurmPrefixFilter struct {
@@ -22,12 +21,6 @@ type SlurmBGPsecFilter struct {
 	ASN     *uint32 `json:"asn,omitempty"`
 	SKI     []byte  `json:"SKI,omitempty"`
 	Comment string  `json:"comment"`
-}
-
-type SlurmASPAFilter struct {
-	Afi          string `json:"afi"`
-	Comment      string `json:"comment"`
-	CustomerASid uint32 `json:"customer_asid"`
 }
 
 func (pf *SlurmPrefixFilter) GetASN() (uint32, bool) {
@@ -46,7 +39,6 @@ func (pf *SlurmPrefixFilter) GetPrefix() netip.Prefix {
 type SlurmValidationOutputFilters struct {
 	PrefixFilters []SlurmPrefixFilter
 	BgpsecFilters []SlurmBGPsecFilter
-	AspaFilters   []SlurmASPAFilter
 }
 
 type SlurmPrefixAssertion struct {
@@ -61,13 +53,6 @@ type SlurmBGPsecAssertion struct {
 	ASN             uint32 `json:"asn"`
 	Comment         string `json:"comment"`
 	RouterPublicKey []byte `json:"routerPublicKey"`
-}
-
-type SlurmASPAAssertion struct {
-	Afi           string   `json:"afi"`
-	Comment       string   `json:"comment"`
-	CustomerASNid uint32   `json:"customer_asid"`
-	ProviderSet   []uint32 `json:"provider_set"`
 }
 
 func (pa *SlurmPrefixAssertion) GetASN() uint32 {
@@ -86,7 +71,6 @@ func (pa *SlurmPrefixAssertion) GetMaxLen() int {
 type SlurmLocallyAddedAssertions struct {
 	PrefixAssertions []SlurmPrefixAssertion
 	BgpsecAssertions []SlurmBGPsecAssertion
-	AspaAssertions   []SlurmASPAAssertion
 }
 
 type SlurmConfig struct {
@@ -207,33 +191,6 @@ func (s *SlurmValidationOutputFilters) FilterOnBRKs(brks []BgpSecKeyJson) (added
 	return added, removed
 }
 
-func (s *SlurmValidationOutputFilters) FilterOnVAPs(vaps []VAPJson, ipv6 bool) (added, removed []VAPJson) {
-	added = make([]VAPJson, 0)
-	removed = make([]VAPJson, 0)
-	if s.AspaFilters == nil || len(s.AspaFilters) == 0 {
-		return vaps, removed
-	}
-	for _, vap := range vaps {
-		var wasRemoved bool
-		for _, filter := range s.AspaFilters {
-			if strings.Contains(filter.Afi, "6") && !ipv6 {
-				continue
-			}
-
-			if vap.CustomerAsid == filter.CustomerASid {
-				removed = append(removed, vap)
-				wasRemoved = true
-				break
-			}
-		}
-
-		if !wasRemoved {
-			added = append(added, vap)
-		}
-	}
-	return added, removed
-}
-
 func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
 	vrps := make([]VRPJson, 0)
 	if s.PrefixAssertions == nil || len(s.PrefixAssertions) == 0 {
@@ -259,22 +216,6 @@ func (s *SlurmLocallyAddedAssertions) AssertVRPs() []VRPJson {
 	return vrps
 }
 
-func (s *SlurmLocallyAddedAssertions) AssertVAPs() []VAPJson {
-	vaps := make([]VAPJson, 0)
-
-	if s.AspaAssertions == nil || len(s.AspaAssertions) == 0 {
-		return vaps
-	}
-	for _, assertion := range s.AspaAssertions {
-		vap := VAPJson{
-			CustomerAsid: assertion.CustomerASNid,
-			Providers:    assertion.ProviderSet,
-		}
-		vaps = append(vaps, vap)
-	}
-	return vaps
-}
-
 func (s *SlurmLocallyAddedAssertions) AssertBRKs() []BgpSecKeyJson {
 	brks := make([]BgpSecKeyJson, 0)
 
@@ -293,24 +234,21 @@ func (s *SlurmLocallyAddedAssertions) AssertBRKs() []BgpSecKeyJson {
 	return brks
 }
 
-func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, vaps []VAPJson, BRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) GetAssertions() (vrps []VRPJson, BRKs []BgpSecKeyJson) {
 	vrps = s.LocallyAddedAssertions.AssertVRPs()
-	vaps = s.LocallyAddedAssertions.AssertVAPs()
 	BRKs = s.LocallyAddedAssertions.AssertBRKs()
 	return
 }
 
-func (s *SlurmConfig) FilterAssert(vrps []VRPJson, vaps []VAPJson, BRKs []BgpSecKeyJson, log Logger) (
-	ovrps []VRPJson, ovaps []VAPJson, oBRKs []BgpSecKeyJson) {
+func (s *SlurmConfig) FilterAssert(vrps []VRPJson, BRKs []BgpSecKeyJson, log Logger) (
+	ovrps []VRPJson, oBRKs []BgpSecKeyJson) {
 	//
 	filteredVRPs, removedVRPs := s.ValidationOutputFilters.FilterOnVRPs(vrps)
-	filteredVAPs, removedVAPs := s.ValidationOutputFilters.FilterOnVAPs(vaps, false)
 	filteredBRKs, removedBRKs := s.ValidationOutputFilters.FilterOnBRKs(BRKs)
 
-	assertVRPs, assertVAPs, assertBRKs := s.GetAssertions()
+	assertVRPs, assertBRKs := s.GetAssertions()
 
 	ovrps = append(filteredVRPs, assertVRPs...)
-	ovaps = append(filteredVAPs, assertVAPs...)
 	oBRKs = append(filteredBRKs, assertBRKs...)
 
 	if log != nil {
@@ -320,10 +258,6 @@ func (s *SlurmConfig) FilterAssert(vrps []VRPJson, vaps []VAPJson, BRKs []BgpSec
 
 		if len(s.ValidationOutputFilters.BgpsecFilters) != 0 {
 			log.Infof("Slurm Router Key filtering: %v kept, %v removed, %v asserted", len(filteredBRKs), len(removedBRKs), len(oBRKs))
-		}
-
-		if len(s.ValidationOutputFilters.AspaFilters) != 0 {
-			log.Infof("Slurm ASPA filtering: %v kept, %v removed, %v asserted", len(filteredVAPs), len(removedVAPs), len(ovaps))
 		}
 	}
 	return
