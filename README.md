@@ -2,7 +2,7 @@
 
 ![animated stayrtr logo](stayrtr.gif)
 
-StayRTR is an open-source implementation of RPKI-to-Router protocol (RFC 6810, RFC 8210, RFC 8210bis); based on GoRTR using the [the Go Programming Language](http://golang.org/).
+StayRTR is an open-source implementation of RPKI-to-Router protocol (RFC 6810, RFC 8210); based on GoRTR using the [the Go Programming Language](http://golang.org/).
 
 * `/lib` contains a library to create your own server and client.
 * `/prefixfile` contains the structure of a JSON export file and signing capabilities.
@@ -39,7 +39,6 @@ Special thanks for support to the Route Server Support Foundation [RSSF](https:/
 
 * Protocol v0 of [RFC6810](https://tools.ietf.org/html/rfc6810)
 * Protocol v1 of [RFC8210](https://tools.ietf.org/html/rfc8210)
-* Protocol v2 of [draft-ietf-sidrops-8210bis-10](https://tools.ietf.org/html/draft-ietf-sidrops-8210bis-10)
 * Event-driven API
 * TLS
 * SSH
