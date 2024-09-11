@@ -29,7 +29,7 @@ type RTREventHandler interface {
 	RequestNewVersion(*Client, uint16, uint32)
 }
 
-// This is a general interface for things like a VRP, BGPsec Router key or ASPA object
+// This is a general interface for things like a VRP or BGPsec Router key
 // Be sure to have all of these as pointers, or SetFlag() cannot work!
 type SendableData interface {
 	Copy() SendableData
@@ -41,7 +41,7 @@ type SendableData interface {
 	GetFlag() uint8
 }
 
-// This handles things like ROAs, BGPsec Router keys, ASPA info etc
+// This handles things like ROAs, BGPsec Router keys info etc
 type SendableDataManager interface {
 	GetCurrentSerial() (uint32, bool)
 	GetSessionId(uint8) uint16
@@ -134,7 +134,6 @@ type Server struct {
 	simpleHandler  RTREventHandler
 	enforceVersion bool
 	disableBGPSec  bool
-	disableASPA    bool
 	enableNODELAY  bool
 
 	sdlock          *sync.RWMutex
@@ -160,7 +159,6 @@ type ServerConfiguration struct {
 	SessId int
 
 	DisableBGPSec	bool
-	DisableASPA	bool
 	EnableNODELAY	bool
 
 	RefreshInterval uint32
@@ -205,7 +203,6 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 
 		enforceVersion: configuration.EnforceVersion,
 		disableBGPSec:	configuration.DisableBGPSec,
-		disableASPA:	configuration.DisableASPA,
 
 		pduRefreshInterval: refreshInterval,
 		pduRetryInterval:   retryInterval,
@@ -506,9 +503,6 @@ func (s *Server) acceptClientTCP(tcpconn net.Conn) error {
 	if s.disableBGPSec {
 		client.DisableBGPsec()
 	}
-	if s.disableASPA {
-		client.DisableASPA()
-	}
 	go client.Start()
 	return nil
 }
@@ -683,7 +677,6 @@ type Client struct {
 	expireInterval  uint32
 
 	dontSendBGPsecKeys bool
-	dontSendASPA       bool
 
 	log Logger
 }
@@ -706,10 +699,6 @@ func (c *Client) GetVersion() uint8 {
 
 func (c *Client) DisableBGPsec() {
 	c.dontSendBGPsecKeys = true
-}
-
-func (c *Client) DisableASPA() {
-	c.dontSendASPA = true
 }
 
 func (c *Client) SetIntervals(refreshInterval uint32, retryInterval uint32, expireInterval uint32) {
@@ -925,51 +914,6 @@ func (brk *BgpsecKey) GetFlag() uint8 {
 	return brk.Flags
 }
 
-type VAP struct {
-	Flags       uint8
-	CustomerASN uint32
-	Providers   []uint32
-}
-
-func (vap *VAP) Type() string {
-	return "ASPA"
-}
-
-func (vap *VAP) String() string {
-	return fmt.Sprintf("ASPA AS%v -> Providers: %v", vap.CustomerASN, vap.Providers)
-}
-
-func (vap *VAP) HashKey() string {
-	return fmt.Sprintf("%v-%v", vap.CustomerASN, vap.Providers)
-}
-
-func (r1 *VAP) Equals(r2 SendableData) bool {
-	if r1.Type() != r2.Type() {
-		return false
-	}
-
-	r2True := r2.(*VAP)
-	return r1.CustomerASN == r2True.CustomerASN && fmt.Sprint(r1.Providers) == fmt.Sprint(r2True.Providers) /*This could be made faster*/
-}
-
-func (vap *VAP) Copy() SendableData {
-	cop := VAP{
-		CustomerASN: vap.CustomerASN,
-		Flags:       vap.Flags,
-		Providers:   make([]uint32, 0),
-	}
-	cop.Providers = append(cop.Providers, vap.Providers...)
-	return &cop
-}
-
-func (vap *VAP) SetFlag(f uint8) {
-	vap.Flags = f
-}
-
-func (vap *VAP) GetFlag() uint8 {
-	return vap.Flags
-}
-
 func (c *Client) SendSDs(sessionId uint16, serialNumber uint32, data []SendableData) {
 	pduBegin := &PDUCacheResponse{
 		SessionId: sessionId,
@@ -1054,36 +998,13 @@ func (c *Client) SendData(sd SendableData) {
 		}
 
 		pdu := &PDURouterKey{
-			Version:              c.version, // The RouterKey PDU is unchanged from rfc8210 to draft-ietf-sidrops-8210bis-10
+			Version:              c.version,
 			Flags:                t.Flags,
 			SubjectKeyIdentifier: t.Ski,
 			ASN:                  t.ASN,
 			SubjectPublicKeyInfo: t.Pubkey,
 		}
 		c.SendPDU(pdu)
-	case *VAP:
-		if c.version < 2 || c.dontSendASPA {
-			return
-		}
-
-		pdu4 := &PDUASPA{
-			Version:           c.version,
-			Flags:             t.Flags,
-			AFIFlags:          AFI_IPv4,
-			ProviderASCount:   uint16(len(t.Providers)),
-			CustomerASNumber:  t.CustomerASN,
-			ProviderASNumbers: t.Providers,
-		}
-		pdu6 := &PDUASPA{
-			Version:           c.version,
-			Flags:             t.Flags,
-			AFIFlags:          AFI_IPv6,
-			ProviderASCount:   uint16(len(t.Providers)),
-			CustomerASNumber:  t.CustomerASN,
-			ProviderASNumbers: t.Providers,
-		}
-		c.SendPDU(pdu4)
-		c.SendPDU(pdu6)
 	}
 }
 

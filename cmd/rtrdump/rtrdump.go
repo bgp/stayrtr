@@ -112,21 +112,6 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 		if *LogDataPDU {
 			log.Debugf("Received: %v", pdu)
 		}
-
-	case *rtr.PDUASPA:
-		if c.Data.ASPA == nil {
-			c.Data.ASPA = make([]prefixfile.VAPJson, 0)
-		}
-		aj := prefixfile.VAPJson{
-			CustomerAsid: pdu.CustomerASNumber,
-			Providers:    pdu.ProviderASNumbers,
-		}
-
-		c.Data.ASPA = append(c.Data.ASPA, aj)
-
-		if *LogDataPDU {
-			log.Debugf("Received: %v", pdu)
-		}
 	case *rtr.PDUEndOfData:
 		cs.Disconnect()
 		log.Debugf("Received: %v", pdu)
