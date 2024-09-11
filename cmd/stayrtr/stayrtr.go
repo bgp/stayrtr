@@ -155,7 +155,6 @@ var (
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
-		2: rtr.PROTOCOL_VERSION_2,
 	}
 )
 
