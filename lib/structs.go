@@ -19,7 +19,7 @@ type Logger interface {
 }
 
 const (
-	APP_VERSION = "0.6.0"
+	APP_VERSION = "0.6.1"
 
 	// We use the size of the largest sensible PDU.
 	//
