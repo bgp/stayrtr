@@ -36,7 +36,7 @@ var (
 	Serial     = flag.Int("serial.value", 0, "Serial number")
 	Session    = flag.Int("session.id", 0, "Session ID")
 
-	FlagVersion = flag.Int("rtr.version", 2, "What RTR version you want to use, Version 2 is draft-ietf-sidrops-8210bis-10")
+	FlagVersion = flag.Int("rtr.version", 1, "What RTR version you want to use, Version 1 is RFC8210")
 
 	ConnType     = flag.String("type", "plain", "Type of connection: plain, tls or ssh")
 	ValidateCert = flag.Bool("tls.validate", true, "Validate TLS")
