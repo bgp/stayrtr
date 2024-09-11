@@ -820,6 +820,7 @@ func run() error {
 		go func() {
 			sessid := server.GetSessionId(protoverToLib[*RTRVersion])
 			log.Infof("StayRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
+			log.Infof("StayRTR Server v%s binding to %s", rtr.APP_VERSION, *Bind)
 			err := server.Start(*Bind)
 			if err != nil {
 				log.Fatal(err)
