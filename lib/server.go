@@ -717,7 +717,7 @@ func (c *Client) SetDisableVersionCheck(disableCheck bool) {
 }
 
 func (c *Client) checkVersion(newversion uint8) {
-	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_2 || newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
+	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
 		c.SetVersion(newversion)
 	} else {
 		if c.log != nil {
