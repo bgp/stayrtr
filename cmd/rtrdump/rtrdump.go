@@ -147,13 +147,11 @@ func main() {
 	}
 
 	targetVersion := rtr.PROTOCOL_VERSION_0
-	if *FlagVersion > 2 {
-		log.Fatalf("Invalid RTR Version provided, the highest version this release supports is 2")
+	if *FlagVersion > 1 {
+		log.Fatalf("Invalid RTR Version provided, the highest version this release supports is 1")
 	}
 	if *FlagVersion == 1 {
 		targetVersion = rtr.PROTOCOL_VERSION_1
-	} else if *FlagVersion == 2 {
-		targetVersion = rtr.PROTOCOL_VERSION_2
 	}
 
 	lvl, _ := log.ParseLevel(*LogLevel)
@@ -225,9 +223,6 @@ func main() {
 	log.Infof("Connecting with %v to %v", *ConnType, *Connect)
 	err := clientSession.Start(*Connect, typeToId[*ConnType], configTLS, configSSH)
 	if err != nil {
-		if err == io.EOF && targetVersion == rtr.PROTOCOL_VERSION_2 {
-			log.Warnf("EOF From remote side, This might be due to version 2 being requested, try using -rtr.version 1")
-		}
 		log.Fatal(err)
 	}
 
