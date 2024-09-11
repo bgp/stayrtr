@@ -2,6 +2,12 @@
 
 ![animated stayrtr logo](stayrtr.gif)
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/rpki/stayrtr.svg)](https://hub.docker.com/r/rpki/stayrtr)
+
+<a href="https://repology.org/project/stayrtr/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/stayrtr.svg" alt="Packaging status" align="right">
+</a>
+
 StayRTR is an open-source implementation of RPKI-to-Router protocol (RFC 6810, RFC 8210); based on GoRTR using the [the Go Programming Language](http://golang.org/).
 
 * `/lib` contains a library to create your own server and client.
