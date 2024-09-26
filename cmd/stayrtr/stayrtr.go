@@ -31,8 +31,11 @@ import (
 )
 
 const (
+	ENV_CACHE = "STAYRTR_CACHE"
 	ENV_SSH_PASSWORD = "STAYRTR_SSH_PASSWORD"
 	ENV_SSH_KEY      = "STAYRTR_SSH_AUTHORIZEDKEYS"
+
+	DEFAULT_CACHE = "https://console.rpki-client.org/rpki.json"
 
 	METHOD_NONE = iota
 	METHOD_PASSWORD
@@ -80,7 +83,7 @@ var (
 
 	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale (disable by passing -checktime=false)")
 
-	CacheBin = flag.String("cache", "https://console.rpki-client.org/rpki.json", "URL of the Validated RPKI data in JSON format")
+	CacheBin = flag.String("cache", DEFAULT_CACHE, fmt.Sprintf("URL of the Validated RPKI data in JSON format", ENV_CACHE))
 
 	Etag            = flag.Bool("etag", true, "Control usage of Etag header (disable with -etag=false)")
 	LastModified    = flag.Bool("last.modified", true, "Control usage of Last-Modified header (disable with -last.modified=false)")
@@ -755,6 +758,11 @@ func run() error {
 	s.fetchConfig.Mime = *Mime
 	s.fetchConfig.EnableEtags = *Etag
 	s.fetchConfig.EnableLastModified = *LastModified
+
+	cache := *CacheBin
+	if cache == DEFAULT_CACHE {
+		cache = os.Getenv(ENV_CACHE)
+	}
 
 	if enableHTTP {
 		if *ExportPath != "" {
