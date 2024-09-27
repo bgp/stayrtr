@@ -809,9 +809,8 @@ func run() error {
 	s.fetchConfig.EnableEtags = *Etag
 	s.fetchConfig.EnableLastModified = *LastModified
 
-	cache := *CacheBin
-	if cache == DEFAULT_CACHE {
-		cache = os.Getenv(ENV_CACHE)
+	if *CacheBin == DEFAULT_CACHE && os.Getenv(ENV_CACHE) != "" {
+		*CacheBin = os.Getenv(ENV_CACHE)
 	}
 
 	if enableHTTP {
