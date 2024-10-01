@@ -2,6 +2,7 @@ package rtrlib
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -10,8 +11,12 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"syscall"
+	"time"
+	"unsafe"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
 )
 
 func GenerateSessionId() uint16 {
@@ -136,6 +141,8 @@ type Server struct {
 	disableBGPSec  bool
 	enableNODELAY  bool
 
+	tcpMD5Password string
+
 	sdlock          *sync.RWMutex
 	sdListDiff      [][]SendableData
 	sdCurrent       []SendableData
@@ -160,6 +167,8 @@ type ServerConfiguration struct {
 
 	DisableBGPSec	bool
 	EnableNODELAY	bool
+
+	TCPMD5Password	string
 
 	RefreshInterval uint32
 	RetryInterval   uint32
@@ -203,6 +212,8 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 
 		enforceVersion: configuration.EnforceVersion,
 		disableBGPSec:	configuration.DisableBGPSec,
+
+		tcpMD5Password:	configuration.TCPMD5Password,
 
 		pduRefreshInterval: refreshInterval,
 		pduRetryInterval:   retryInterval,
@@ -479,11 +490,47 @@ func (s *Server) RequestNewVersion(c *Client, sessionId uint16, serial uint32) {
 }
 
 func (s *Server) Start(bind string) error {
-	tcplist, err := net.Listen("tcp", bind)
-	if err != nil {
-		return err
+	s.log.Warnf("YYY: %s", s.tcpMD5Password)
+	if (s.tcpMD5Password != "") {
+		s.log.Warnf("XXX : got pass!")
+		saStorage := unix.SockaddrStorage{
+			Family: unix.AF_INET,
+		}
+		tcpMD5Sig := unix.TCPMD5Sig{
+
+			Addr:      saStorage,
+			Flags:     unix.TCP_MD5SIG_FLAG_PREFIX,
+			Prefixlen: 0,
+			Keylen:    uint16(len(s.tcpMD5Password)),
+		}
+		copy(tcpMD5Sig.Key[0:], []byte(s.tcpMD5Password))
+
+		var lc net.ListenConfig
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		lc.Control = func(network, address string, c syscall.RawConn) error {
+			var err error
+			c.Control(func(fdPtr uintptr) {
+				fd := int(fdPtr)
+				b := *(*[unsafe.Sizeof(tcpMD5Sig)]byte)(unsafe.Pointer(&tcpMD5Sig))
+				err = unix.SetsockoptString(fd, unix.IPPROTO_TCP, unix.TCP_MD5SIG_EXT, string(b[:]))
+			})
+			return err
+		}
+		tcplist, err := lc.Listen(ctx, "tcp", bind)
+		if err != nil {
+			return err
+		}
+		return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
+	} else {
+		tcplist, err := net.Listen("tcp", bind)
+		if err != nil {
+			return err
+		}
+		return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 	}
-	return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 }
 
 func (s *Server) acceptClientTCP(tcpconn net.Conn) error {

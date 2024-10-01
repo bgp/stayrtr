@@ -60,6 +60,7 @@ var (
 	DisableBGPSec	= flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
 	EnableNODELAY	= flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
+	TCPMD5Password	= flag.String("tcp.password", "", "TCP-MD5 authentication password")
 
 	Bind = flag.String("bind", ":8282", "Bind address")
 
@@ -728,6 +729,7 @@ func run() error {
 		EnforceVersion:  *EnforceVersion,
 		DisableBGPSec:   *DisableBGPSec,
 		EnableNODELAY:   *EnableNODELAY,
+		TCPMD5Password:  *TCPMD5Password,
 	}
 
 	var me *metricsEvent
