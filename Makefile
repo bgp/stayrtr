@@ -90,7 +90,6 @@ package-rpm-stayrtr: prepare
 	--url "$(URL)" \
 	--architecture $(ARCH) \
 	--license "$(LICENSE) "\
-	--package $(DIST_DIR) \
 	$(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
 	package/.keep=/usr/share/stayrtr/.keep \
 	package/stayrtr.service=/lib/systemd/system/stayrtr.service \
