@@ -5,6 +5,8 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  # This workflow is re-used in go-tag.yml
+  workflow_call:
 
 jobs:
   build:
@@ -18,7 +20,7 @@ jobs:
         fetch-depth: '0'
 
     - name: Set up go version from go.mod
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v5
       with:
         go-version-file: 'go.mod'
 
