@@ -5,6 +5,7 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  # This workflow is re-used in go-tag.yml
   workflow_call:
 
 jobs:
