@@ -19,6 +19,8 @@ type MetaData struct {
 	CountBgpSecKeys int  `json:"bgpsec_pubkeys"`
 	Buildtime     string `json:"buildtime,omitempty"`
 	GeneratedUnix *int64 `json:"generated,omitempty"`
+	SessionID        int `json:"sessionid,omitempty"`
+	Serial           int `json:"serial"`
 }
 
 type VRPJson struct {

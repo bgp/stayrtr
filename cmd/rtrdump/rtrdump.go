@@ -113,6 +113,8 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			log.Debugf("Received: %v", pdu)
 		}
 	case *rtr.PDUEndOfData:
+		c.Data.Metadata.SessionID = int(pdu.SessionId)
+		c.Data.Metadata.Serial = int(pdu.SerialNumber)
 		cs.Disconnect()
 		log.Debugf("Received: %v", pdu)
 	case *rtr.PDUCacheResponse:
