@@ -96,6 +96,17 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
+	Info = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "rtr_info",
+			Help: "stayrtr info.",
+			ConstLabels: prometheus.Labels{
+				"nodename":	os.Hostname(),
+				"version":	AppVersion,
+			},
+		},
+		func() float64 { return 1 },
+	)
 	NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_vrps",
@@ -159,6 +170,7 @@ var (
 )
 
 func initMetrics() {
+	prometheus.MustRegister(Info)
 	prometheus.MustRegister(NumberOfObjects)
 	prometheus.MustRegister(NumberOfVRPs)
 	prometheus.MustRegister(LastChange)
