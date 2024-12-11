@@ -45,6 +45,7 @@ const (
 
 var (
 	AppVersion = "StayRTR " + rtr.APP_VERSION
+	NodeName, DomainName = getHostAndDomainName()
 
 	MetricsAddr = flag.String("metrics.addr", ":9847", "Metrics address")
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
@@ -101,7 +102,8 @@ var (
 			Name: "rtr_info",
 			Help: "stayrtr info.",
 			ConstLabels: prometheus.Labels{
-				"nodename":	os.Hostname(),
+				"domainname":   DomainName,
+				"nodename":     NodeName,
 				"version":	AppVersion,
 			},
 		},
@@ -168,6 +170,19 @@ var (
 		1: rtr.PROTOCOL_VERSION_1,
 	}
 )
+
+func getHostAndDomainName() (string, string) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Printf("Error getting hostname: %v\n", err)
+		return "unknown", "unknown"
+	}
+	parts := strings.SplitN(hostname, ".", 2)
+	if len(parts) > 1 {
+		return parts[0], parts[1]
+	}
+	return parts[0], ""
+}
 
 func initMetrics() {
 	prometheus.MustRegister(Info)
