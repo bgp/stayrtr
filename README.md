@@ -152,7 +152,7 @@ $ openssl req -new -x509 -key private.pem -out server.pem
 Then, you have to run
 
 ```bash
-$ ./stayrtr -ssh.bind :8282 -tls.key private.pem -tls.cert server.pem
+$ ./stayrtr -tls.bind :8282 -tls.key private.pem -tls.cert server.pem
 ```
 
 ### With SSH
