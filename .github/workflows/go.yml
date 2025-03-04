@@ -24,6 +24,12 @@ jobs:
       with:
         go-version-file: 'go.mod'
 
+    - id: govulncheck
+      uses: golang/govulncheck-action@v1
+      with:
+        go-version-file: 'go.mod'
+        go-package: ./...
+
     - name: Test & Vet
       run: make test vet
 
