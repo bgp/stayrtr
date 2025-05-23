@@ -169,9 +169,12 @@ func initMetrics() {
 	prometheus.MustRegister(CurrentSerial)
 }
 
-func serveHTTP() {
-	http.Handle(*MetricsPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(*MetricsAddr, nil))
+func serveHTTP(mux *http.ServeMux) {
+	srv := &http.Server{
+		Addr:    *MetricsAddr,
+		Handler: mux,
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // newSHA256 will return the sha256 sum of the byte slice
@@ -796,13 +799,18 @@ func run() error {
 	s.fetchConfig.EnableLastModified = *LastModified
 
 	if enableHTTP {
+		mux := http.NewServeMux()
+		mux.Handle(*MetricsPath, promhttp.Handler())
+		mux.HandleFunc("GET /clients", server.GetClientRemoteAddrs)
+
 		if *ExportPath != "" {
-			http.HandleFunc(*ExportPath, s.exporter)
+			mux.HandleFunc(*ExportPath, s.exporter)
 		}
 		if *EnableUpdateEndpoint {
-			http.HandleFunc("/api/update", s.updateNow)
+			mux.HandleFunc("/api/update", s.updateNow)
 		}
-		go serveHTTP()
+
+		go serveHTTP(mux)
 	}
 
 	if *Bind == "" && *BindTLS == "" && *BindSSH == "" {
