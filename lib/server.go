@@ -2,6 +2,7 @@ package rtrlib
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
         "encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"sync"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 )
 
 func GenerateSessionId() uint16 {
@@ -655,7 +657,6 @@ func ClientFromConn(tcpconn net.Conn, handler RTRServerEventHandler, simpleHandl
 		handler:       handler,
 		simpleHandler: simpleHandler,
 		transmits:     make(chan PDU, 256),
-		quit:          make(chan bool),
 	}
 }
 
@@ -667,7 +668,6 @@ func ClientFromConnSSH(tcpconn net.Conn, channel ssh.Channel, handler RTRServerE
 }
 
 type Client struct {
-	connected     bool
 	version       uint8
 	versionset    bool
 	tcpconn       net.Conn
@@ -678,7 +678,7 @@ type Client struct {
 	curserial     uint32
 
 	transmits chan PDU
-	quit      chan bool
+	cancel    context.CancelFunc
 
 	enforceVersion      bool
 	disableVersionCheck bool
@@ -727,7 +727,7 @@ func (c *Client) SetDisableVersionCheck(disableCheck bool) {
 	c.disableVersionCheck = disableCheck
 }
 
-func (c *Client) checkVersion(newversion uint8) {
+func (c *Client) checkVersion(newversion uint8) error {
 	if (!c.versionset || newversion == c.version) && (newversion == PROTOCOL_VERSION_1 || newversion == PROTOCOL_VERSION_0) {
 		c.SetVersion(newversion)
 	} else {
@@ -736,7 +736,9 @@ func (c *Client) checkVersion(newversion uint8) {
 		}
 		c.SendWrongVersionError()
 		c.Disconnect()
+		return fmt.Errorf("%v: has bad version (received: v%v, current: v%v)", c.String(), newversion, c.version)
 	}
+	return nil
 }
 
 func (c *Client) passSimpleHandler(pdu PDU) {
@@ -752,76 +754,98 @@ func (c *Client) passSimpleHandler(pdu PDU) {
 	}
 }
 
-func (c *Client) sendLoop() {
-	defer c.tcpconn.Close()
-
-	for c.connected {
+func (c *Client) sendLoop(ctx context.Context) error {
+	for {
 		select {
 		case pdu := <-c.transmits:
 			c.wr.Write(pdu.Bytes())
-		case <-c.quit:
-			return
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 }
 
+func (c *Client) readLoop(ctx context.Context) error {
+	buf := make([]byte, 8000)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			length, err := c.rd.Read(buf)
+			if err != nil || length == 0 {
+				if c.log != nil {
+					c.log.Debugf("Error %v", err)
+				}
+				c.Disconnect()
+				return err
+			}
+
+			pkt := buf[0:length]
+			dec, err := DecodeBytes(pkt)
+			if err != nil || dec == nil {
+				if c.log != nil {
+					c.log.Errorf("Error %v", err)
+				}
+				c.Disconnect()
+				return err
+			}
+			if !c.disableVersionCheck {
+				if err := c.checkVersion(dec.GetVersion()); err != nil {
+					// checkVersion returns an error if it issued a disconnect
+					return err
+				}
+			}
+			if c.log != nil {
+				c.log.Debugf("%v: Received %v", c.String(), dec)
+			}
+
+			if c.enforceVersion {
+				if !IsCorrectPDUVersion(dec, c.version) {
+					if c.log != nil {
+						c.log.Debugf("Bad version error")
+					}
+					c.SendWrongVersionError()
+					c.Disconnect()
+					return fmt.Errorf("%s: bad version error", c.String())
+				}
+			}
+
+			switch pduconv := dec.(type) {
+			case *PDUSerialQuery:
+				c.curserial = pduconv.SerialNumber
+			}
+
+			if c.handler != nil {
+				c.handler.HandlePDU(c, dec)
+			}
+
+			c.passSimpleHandler(dec)
+		}
+	}
+}
+
+
 func (c *Client) Start() {
-	c.connected = true
+	defer c.tcpconn.Close()
+
 	if c.handler != nil {
 		c.handler.ClientConnected(c)
 	}
 
-	go c.sendLoop()
+	ctx, cancel := context.WithCancel(context.TODO())
+	c.cancel = cancel
+	eg, ctx := errgroup.WithContext(ctx)
 
-	buf := make([]byte, 8000)
-	for c.connected {
-		// Remove this?
-		length, err := c.rd.Read(buf)
-		if err != nil || length == 0 {
-			if c.log != nil {
-				c.log.Debugf("Error %v", err)
-			}
-			c.Disconnect()
-			return
-		}
+	eg.Go(func() error {
+		return c.sendLoop(ctx)
+	})
 
-		pkt := buf[0:length]
-		dec, err := DecodeBytes(pkt)
-		if err != nil || dec == nil {
-			if c.log != nil {
-				c.log.Errorf("Error %v", err)
-			}
-			c.Disconnect()
-			continue
-		}
-		if !c.disableVersionCheck {
-			c.checkVersion(dec.GetVersion())
-		}
-		if c.log != nil {
-			c.log.Debugf("%v: Received %v", c.String(), dec)
-		}
+	eg.Go(func() error {
+		return c.readLoop(ctx)
+	})
 
-		if c.enforceVersion {
-			if !IsCorrectPDUVersion(dec, c.version) {
-				if c.log != nil {
-					c.log.Debugf("Bad version error")
-				}
-				c.SendWrongVersionError()
-				c.Disconnect()
-			}
-		}
-
-		switch pduconv := dec.(type) {
-		case *PDUSerialQuery:
-			c.curserial = pduconv.SerialNumber
-		}
-
-		if c.handler != nil {
-			c.handler.HandlePDU(c, dec)
-		}
-
-		c.passSimpleHandler(dec)
-	}
+	eg.Wait()
 }
 
 func (c *Client) Notify(sessionId uint16, serialNumber uint32) {
@@ -1029,15 +1053,11 @@ func (c *Client) SendPDU(pdu PDU) {
 }
 
 func (c *Client) Disconnect() {
-	c.connected = false
 	if c.log != nil {
 		c.log.Infof("Disconnecting client %v", c.String())
 	}
 	if c.handler != nil {
 		c.handler.ClientDisconnected(c)
 	}
-	select {
-	case c.quit <- true:
-	default:
-	}
+	c.cancel()
 }
