@@ -3,11 +3,13 @@ package rtrlib
 import (
 	"bytes"
 	"crypto/tls"
+        "encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"math/rand"
 	"net"
+        "net/http"
 	"net/netip"
 	"sync"
 
@@ -417,6 +419,15 @@ func (s *Server) SetMaxConnections(maxconn int) {
 
 func (s *Server) GetMaxConnections() int {
 	return s.maxconn
+}
+
+func (s *Server) GetClientRemoteAddrs(w http.ResponseWriter, r *http.Request) {
+	clients := s.GetClientList()
+	out := make([]string, len(clients))
+	for i, c := range clients {
+		out[i] = c.GetRemoteAddress().String()
+	}
+	json.NewEncoder(w).Encode(out)
 }
 
 func (s *Server) ClientConnected(c *Client) {
