@@ -51,7 +51,7 @@ Special thanks for support to the Route Server Support Foundation [RSSF](https:/
 
 ## To start developing
 
-You need a working [Go environment](https://golang.org/doc/install) (1.17 or newer).
+You need a working [Go environment](https://golang.org/doc/install) (1.23 or newer).
 This project also uses [Go Modules](https://github.com/golang/go/wiki/Modules).
 
 ```bash
