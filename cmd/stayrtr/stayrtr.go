@@ -45,6 +45,7 @@ const (
 
 var (
 	AppVersion = "StayRTR " + rtr.APP_VERSION
+	NodeName, DomainName = getHostAndDomainName()
 
 	MetricsAddr = flag.String("metrics.addr", ":9847", "Metrics address")
 	MetricsPath = flag.String("metrics.path", "/metrics", "Metrics path")
@@ -96,6 +97,18 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
+	Info = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "rtr_info",
+			Help: "stayrtr info.",
+			ConstLabels: prometheus.Labels{
+				"domainname":   DomainName,
+				"nodename":     NodeName,
+				"version":	AppVersion,
+			},
+		},
+		func() float64 { return 1 },
+	)
 	NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "rpki_vrps",
@@ -158,7 +171,21 @@ var (
 	}
 )
 
+func getHostAndDomainName() (string, string) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Printf("Error getting hostname: %v\n", err)
+		return "unknown", "unknown"
+	}
+	parts := strings.SplitN(hostname, ".", 2)
+	if len(parts) > 1 {
+		return parts[0], parts[1]
+	}
+	return parts[0], ""
+}
+
 func initMetrics() {
+	prometheus.MustRegister(Info)
 	prometheus.MustRegister(NumberOfObjects)
 	prometheus.MustRegister(NumberOfVRPs)
 	prometheus.MustRegister(LastChange)
