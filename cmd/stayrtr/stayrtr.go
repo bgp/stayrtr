@@ -539,6 +539,16 @@ func (s *state) updateDelay(delay *time.Ticker, interval int) {
 	}
 }
 
+func (s *state) errRPKIJsonFileTooOldHandler() {
+	// If the exiting build time is over 24 hours, It's time to drop everything out.
+	// to avoid routing on stale data
+	buildTime := s.exported.Metadata.GetBuildTime()
+	if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
+		log.Errorf("Data is stale, clearing it all.")
+		s.server.AddData([]rtr.SendableData{}) // empty the store of sendable stuff, triggering a emptying of the RTR server
+	}
+}
+
 func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 	log.Debugf("Starting refresh routine (file: %v, interval: %vs, slurm: %v)", file, interval, slurmFile)
 	signals := make(chan os.Signal, 1)
@@ -612,20 +622,18 @@ func (s *state) routineUpdate(file string, interval int, slurmFile string) {
 		if cacheUpdated || slurmNotPresentOrUpdated {
 			err := s.updateFromNewState()
 			if err != nil {
-				if err == errRPKIJsonFileTooOld {
-					// If the exiting build time is over 24 hours, It's time to drop everything out.
-					// to avoid routing on stale data
-					buildTime := s.exported.Metadata.GetBuildTime()
-					if !buildTime.IsZero() && time.Since(buildTime) > time.Hour*24 {
-						s.server.AddData([]rtr.SendableData{}) // empty the store of sendable stuff, triggering a emptying of the RTR server
-					}
-				}
 				log.Errorf("Error updating from new state: %v", err)
+				if err == errRPKIJsonFileTooOld {
+					s.errRPKIJsonFileTooOldHandler()
+				}
 			}
 		} else {
 			err := s.reloadFromCurrentState()
 			if err != nil {
-				log.Errorf("Error updating state: %v", err)
+				log.Errorf("Error updating from current state: %v", err)
+				if err == errRPKIJsonFileTooOld {
+					s.errRPKIJsonFileTooOldHandler()
+				}
 			}
 		}
 	}
