@@ -89,11 +89,11 @@ package-rpm-stayrtr: prepare
 	--description "$(DESCRIPTION)" \
 	--url "$(URL)" \
 	--architecture $(ARCH) \
-	--license "$(LICENSE) "\
+	--license "$(LICENSE)" \
+    --package $(DIST_DIR) \
 	$(OUTPUT_STAYRTR)=/usr/bin/stayrtr \
 	package/.keep=/usr/share/stayrtr/.keep \
 	package/stayrtr.service=/lib/systemd/system/stayrtr.service \
 	package/stayrtr.env=/etc/default/stayrtr \
 	$(OUTPUT_RTRDUMP)=/usr/bin/rtrdump \
 	$(OUTPUT_RTRMON)=/usr/bin/rtrmon
-	mv *.rpm dist/ # It's unclear why we need to do this, but i assume it's a FPM bug.
