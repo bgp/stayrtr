@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	ENV_CACHE = "STAYRTR_CACHE"
+	ENV_CACHE        = "STAYRTR_CACHE"
 	ENV_SSH_PASSWORD = "STAYRTR_SSH_PASSWORD"
 	ENV_SSH_KEY      = "STAYRTR_SSH_AUTHORIZEDKEYS"
 
@@ -83,7 +83,7 @@ var (
 
 	TimeCheck = flag.Bool("checktime", true, "Check if JSON file isn't stale (disable by passing -checktime=false)")
 
-	CacheBin = flag.String("cache", DEFAULT_CACHE, fmt.Sprintf("URL of the Validated RPKI data in JSON format (if blank, will use envvar %v"", ENV_CACHE))
+	CacheBin = flag.String("cache", DEFAULT_CACHE, fmt.Sprintf("URL of the Validated RPKI data in JSON format (if blank, will use envvar %v", ENV_CACHE))
 
 	Etag            = flag.Bool("etag", true, "Control usage of Etag header (disable with -etag=false)")
 	LastModified    = flag.Bool("last.modified", true, "Control usage of Last-Modified header (disable with -last.modified=false)")
