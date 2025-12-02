@@ -12,10 +12,12 @@ type RPKIList struct {
 	Metadata   MetaData                    `json:"metadata,omitempty"`
 	ROA        []VRPJson                   `json:"roas"` // for historical reasons this is called 'roas', but should've been called vrps
 	BgpSecKeys []BgpSecKeyJson             `json:"bgpsec_keys,omitempty"`
+	ASPA       []VAPJson                   `json:"aspas,omitempty"`
 }
 
 type MetaData struct {
 	Counts        int    `json:"vrps"`
+	CountASPAs    int    `json:"aspas"`
 	CountBgpSecKeys int  `json:"bgpsec_pubkeys"`
 	Buildtime     string `json:"buildtime,omitempty"`
 	GeneratedUnix *int64 `json:"generated,omitempty"`
@@ -42,6 +44,12 @@ type BgpSecKeyJson struct {
 	// Base16 encoded, we need to decode this ourself
 	// Example: 510F485D29A29DB7B515F9C478F8ED3CB7AA7D23
 	Ski string `json:"ski"`
+}
+
+type VAPJson struct {
+	CustomerAsid uint32   `json:"customer_asid"`
+	Expires      *int64   `json:"expires,omitempty"`
+	Providers    []uint32 `json:"providers"`
 }
 
 func (md MetaData) GetBuildTime() time.Time {

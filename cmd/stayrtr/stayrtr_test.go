@@ -100,7 +100,7 @@ func TestProcessData(t *testing.T) {
 			Expires: &ExpiredTime,
 		},
 	)
-	got, _, v4count, v6count := processData(stuff, nil)
+	got, _, _, v4count, v6count := processData(stuff, nil, nil)
 	want := []rtr.VRP{
 		{
 			Prefix: netip.MustParsePrefix("2001:db8::/32"),

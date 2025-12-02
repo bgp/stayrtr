@@ -188,6 +188,33 @@ func TestFilterOnBSKs(t *testing.T) {
 	assert.Equal(t, "111b485d29a29db7b515f9c471e1ed3cb7bb7dee", removed[2].Ski)
 	assert.Equal(t, uint32(65005), removed[2].Asn)
 }
+func TestFilterOnVAPs(t *testing.T) {
+	vrps := []VAPJson{
+		{
+			CustomerAsid: 65001,
+			Providers:    []uint32{65002, 65003},
+		},
+		{
+			CustomerAsid: 65002,
+			Providers:    []uint32{65001, 65003},
+		},
+	}
+
+	slurm := SlurmValidationOutputFilters{
+		AspaFilters: []SlurmASPAFilter{
+			{
+				CustomerASid: 65001,
+			},
+			{
+				CustomerASid: 65000,
+			},
+		},
+	}
+	added, removed := slurm.FilterOnVAPs(vrps)
+	assert.Len(t, added, 1)
+	assert.Len(t, removed, 1)
+	assert.Equal(t, uint32(65001), removed[0].CustomerAsid)
+}
 
 func TestSlurmEndToEnd(t *testing.T) {
 	slurmfd, err := os.Open("slurm.json")
@@ -212,7 +239,8 @@ func TestSlurmEndToEnd(t *testing.T) {
 		panic(err)
 	}
 
-	finalVRP, finalBgpsec := config.FilterAssert(vrplist.ROA, vrplist.BgpSecKeys, nil)
+	finalVRP, finalASPA, finalBgpsec :=
+		config.FilterAssert(vrplist.ROA, vrplist.ASPA, vrplist.BgpSecKeys, nil)
 
 	foundAssertVRP := false
 	for _, vrps := range finalVRP {
@@ -226,6 +254,19 @@ func TestSlurmEndToEnd(t *testing.T) {
 	}
 	if !foundAssertVRP {
 		t.Fatalf("Did not find asserted VRP")
+	}
+
+	foundAssertVAP := false
+	for _, vaps := range finalASPA {
+		if vaps.CustomerAsid == 64499 {
+			foundAssertVAP = true
+		}
+		if vaps.CustomerAsid == 64496 {
+			t.Fatalf("Found filtered ASPA")
+		}
+	}
+	if !foundAssertVAP {
+		t.Fatalf("Did not find asserted VAP")
 	}
 
 	foundAssertBRK := false
