@@ -55,13 +55,14 @@ var (
 	ExportPath           = flag.String("export.path", "/rpki.json", "Export path")
 	EnableUpdateEndpoint = flag.Bool("update.endpoint", false, "Enable HTTP endpoint that expedites the next fetch")
 
-	RTRVersion     = flag.Int("protocol", 1, "RTR protocol version. Default is version 1 (RFC 8210)")
+	RTRVersion     = flag.Int("protocol", 2, "RTR protocol version. Default is version 2 (RFC 8210bis)")
 	RefreshRTR     = flag.Int("rtr.refresh", 3600, "Refresh interval")
 	RetryRTR       = flag.Int("rtr.retry", 600, "Retry interval")
 	ExpireRTR      = flag.Int("rtr.expire", 7200, "Expire interval")
 	SendNotifs     = flag.Bool("notifications", true, "Send notifications to clients (disable with -notifications=false)")
 	EnforceVersion = flag.Bool("enforce.version", false, "Disable version negotiation")
 	DisableBGPSec  = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
+	DisableASPA    = flag.Bool("disable.aspa", false, "Disable sending out ASPA objects")
 	EnableNODELAY  = flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
 	Bind = flag.String("bind", ":8282", "Bind address")
@@ -158,6 +159,7 @@ var (
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
+		2: rtr.PROTOCOL_VERSION_2,
 	}
 )
 
@@ -211,9 +213,10 @@ func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 // 1 - The prefix is a valid prefix
 // 2 - The ASN is a valid ASN
 // 3 - The MaxLength is valid
-// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs and BGPsec Keys
+// Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs, BGPsec Keys and ASPA records
 func processData(vrplistjson []prefixfile.VRPJson,
-	brklistjson []prefixfile.BgpSecKeyJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, int, int) {
+	brklistjson []prefixfile.BgpSecKeyJson,
+	aspajson []prefixfile.VAPJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, []rtr.VAP, int, int) {
 	filterDuplicates := make(map[string]struct{})
 
 	// It may be tempting to change this to a simple time.Since() but that will
@@ -224,6 +227,7 @@ func processData(vrplistjson []prefixfile.VRPJson,
 
 	var vrplist []rtr.VRP
 	var brklist = make([]rtr.BgpsecKey, 0)
+	var aspalist = make([]rtr.VAP, 0)
 	var countv4 int
 	var countv6 int
 
@@ -324,7 +328,26 @@ func processData(vrplistjson []prefixfile.VRPJson,
 		})
 	}
 
-	return vrplist, brklist, countv4, countv6
+	for _, v := range aspajson {
+		if v.Expires != nil {
+			if NowUnix > *v.Expires {
+				continue
+			}
+		}
+
+		// Ensure that these are sorted, otherwise they
+		// don't hash right.
+		sort.Slice(v.Providers, func(i, j int) bool {
+			return v.Providers[i] < v.Providers[j]
+		})
+
+		aspalist = append(aspalist, rtr.VAP{
+			CustomerASN: v.CustomerAsid,
+			Providers:   v.Providers,
+		})
+	}
+
+	return vrplist, brklist, aspalist, countv4, countv6
 }
 
 type IdenticalFile struct {
@@ -347,6 +370,10 @@ func (s *state) updateFromNewState() error {
 	if bgpsecjson == nil {
 		bgpsecjson = make([]prefixfile.BgpSecKeyJson, 0)
 	}
+	aspajson := s.lastdata.ASPA
+	if aspajson == nil {
+		aspajson = make([]prefixfile.VAPJson, 0)
+	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.lastdata.Metadata.GeneratedUnix != nil {
@@ -364,14 +391,14 @@ func (s *state) updateFromNewState() error {
 	}
 
 	if s.slurm != nil {
-		vrpsjson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, bgpsecjson, log.StandardLogger())
+		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, countv4, countv6 := processData(vrpsjson, bgpsecjson)
-	count := len(vrps) + len(brks)
+	vrps, brks, vaps, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	count := len(vrps) + len(brks) + len(vaps)
 
-	log.Infof("New update (%v uniques, %v total prefixes, %v router keys).", len(vrps), count, len(brks))
-	return s.applyUpdateFromNewState(vrps, brks, vrpsjson, bgpsecjson, countv4, countv6)
+	log.Infof("New update (%v uniques, %v total prefixes, %v vaps, %v router keys).", len(vrps), count, len(vaps), len(brks))
+	return s.applyUpdateFromNewState(vrps, brks, vaps, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 }
 
 // Update the state based on the currently loaded files
@@ -384,6 +411,10 @@ func (s *state) reloadFromCurrentState() error {
 	if bgpsecjson == nil {
 		bgpsecjson = make([]prefixfile.BgpSecKeyJson, 0)
 	}
+	aspajson := s.lastdata.ASPA
+	if aspajson == nil {
+		aspajson = make([]prefixfile.VAPJson, 0)
+	}
 
 	buildtime, err := time.Parse(time.RFC3339, s.lastdata.Metadata.Buildtime)
 	if s.lastdata.Metadata.GeneratedUnix != nil {
@@ -401,27 +432,30 @@ func (s *state) reloadFromCurrentState() error {
 	}
 
 	if s.slurm != nil {
-		vrpsjson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, bgpsecjson, log.StandardLogger())
+		vrpsjson, aspajson, bgpsecjson = s.slurm.FilterAssert(vrpsjson, aspajson, bgpsecjson, log.StandardLogger())
 	}
 
-	vrps, brks, countv4, countv6 := processData(vrpsjson, bgpsecjson)
-	count := len(vrps) + len(brks)
+	vrps, brks, vaps, countv4, countv6 := processData(vrpsjson, bgpsecjson, aspajson)
+	count := len(vrps) + len(brks) + len(vaps)
 	if s.server.CountSDs() != count {
 		log.Infof("New update to old state (%v uniques, %v total prefixes). (old %v - new %v)", len(vrps), count, s.server.CountSDs(), count)
-		return s.applyUpdateFromNewState(vrps, brks, vrpsjson, bgpsecjson, countv4, countv6)
+		return s.applyUpdateFromNewState(vrps, brks, vaps, vrpsjson, bgpsecjson, aspajson, countv4, countv6)
 	}
 	return nil
 }
 
-func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey,
-	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson,
+func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey, vaps []rtr.VAP,
+	vrpsjson []prefixfile.VRPJson, brksjson []prefixfile.BgpSecKeyJson, aspajson []prefixfile.VAPJson,
 	countv4 int, countv6 int) error {
 
-	SDs := make([]rtr.SendableData, 0, len(vrps)+len(brks))
+	SDs := make([]rtr.SendableData, 0, len(vrps)+len(brks)+len(vaps))
 	for _, v := range vrps {
 		SDs = append(SDs, v.Copy())
 	}
 	for _, v := range brks {
+		SDs = append(SDs, v.Copy())
+	}
+	for _, v := range vaps {
 		SDs = append(SDs, v.Copy())
 	}
 	if !s.server.AddData(SDs) {
@@ -445,6 +479,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey,
 		},
 		ROA:        vrpsjson,
 		BgpSecKeys: brksjson,
+		ASPA:       aspajson,
 	}
 	s.lockJson.Unlock()
 
@@ -458,7 +493,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey,
 				countv6_dup++
 			}
 		}
-		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin, len(brks))
+		s.metricsEvent.UpdateMetrics(countv4, countv6, countv4_dup, countv6_dup, s.lastchange, s.lastts, *CacheBin, len(brks), len(vaps))
 	}
 
 	return nil
@@ -723,7 +758,8 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 				"_", -1))).Inc()
 }
 
-func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int) {
+func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int, aspaCount int) {
+	NumberOfObjects.WithLabelValues("vaps").Set(float64(aspaCount))
 	NumberOfObjects.WithLabelValues("bgpsec_pubkeys").Set(float64(brkCount))
 	NumberOfObjects.WithLabelValues("vrps").Set(float64(numIPv4 + numIPv6))
 	NumberOfObjects.WithLabelValues("effective_vrps").Set(float64(numIPv4filtered + numIPv6filtered))
@@ -778,6 +814,7 @@ func run() error {
 
 		EnforceVersion: *EnforceVersion,
 		DisableBGPSec:  *DisableBGPSec,
+		DisableASPA:    *DisableASPA,
 		EnableNODELAY:  *EnableNODELAY,
 	}
 
