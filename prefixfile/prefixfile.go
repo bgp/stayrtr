@@ -36,7 +36,7 @@ type BgpSecKeyJson struct {
 	Expires *int64  `json:"expires,omitempty"`
 	Ta      string  `json:"ta,omitempty"`
 
-	// Base32 encoded, but encoding/json handles this for us
+	// Base64 encoded, but encoding/json handles this for us
 	// Example: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4FxJr0n2bux1uX1Evl+QWwZYvIadPjLuFX2mxqKuAGUhKnr7VLLDgrE++l9p5eH2kWTNVAN22FUU3db/RKpE2w==
 	Pubkey []byte `json:"pubkey"`
 	// Base16 encoded, we need to decode this ourself
