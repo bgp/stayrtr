@@ -161,7 +161,7 @@ func TestJson(t *testing.T) {
 			Counts:    2,
 			Buildtime: "2021-07-27T18:56:02Z",
 		},
-		ROA:  []prefixfile.VRPJson{
+		ROA: []prefixfile.VRPJson{
 			{Prefix: "1.0.0.0/24",
 				Length:  24,
 				ASN:     float64(13335),
