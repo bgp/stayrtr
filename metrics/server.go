@@ -1,6 +1,12 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 type ServerMetrics struct {
 	NumberOfVRPs      *prometheus.GaugeVec
@@ -11,9 +17,10 @@ type ServerMetrics struct {
 	ClientsMetric     *prometheus.GaugeVec
 	PDUsRecv          *prometheus.CounterVec
 	CurrentSerial     prometheus.Gauge
+	info              prometheus.GaugeFunc
 }
 
-func NewServerMetrics() *ServerMetrics {
+func NewServerMetrics(app_version string) *ServerMetrics {
 	metrics := &ServerMetrics{}
 	metrics.NumberOfVRPs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -70,6 +77,21 @@ func NewServerMetrics() *ServerMetrics {
 			Help: "Current serial.",
 		},
 	)
+
+	nodeName, domainName := getHostAndDomainName()
+	metrics.info = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "rtr_info",
+			Help: "stayrtr information",
+			ConstLabels: prometheus.Labels{
+				"domainname": domainName,
+				"nodename":   nodeName,
+				"version":    app_version,
+			},
+		},
+		func() float64 { return 1 },
+	)
+
 	metrics.initMetrics()
 	return metrics
 }
@@ -83,4 +105,17 @@ func (m *ServerMetrics) initMetrics() {
 	prometheus.MustRegister(m.ClientsMetric)
 	prometheus.MustRegister(m.PDUsRecv)
 	prometheus.MustRegister(m.CurrentSerial)
+}
+
+func getHostAndDomainName() (string, string) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Printf("Error getting hostname: %v\n", err)
+		return "unknown", "unknown"
+	}
+	parts := strings.SplitN(hostname, ".", 2)
+	if len(parts) > 1 {
+		return parts[0], parts[1]
+	}
+	return parts[0], ""
 }

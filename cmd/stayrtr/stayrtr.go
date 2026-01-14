@@ -99,7 +99,7 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
-	server_metrics = metrics.NewServerMetrics()
+	server_metrics = metrics.NewServerMetrics(rtr.APP_VERSION)
 
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
