@@ -21,10 +21,10 @@ import (
 	"time"
 
 	rtr "github.com/bgp/stayrtr/lib"
+	"github.com/bgp/stayrtr/metrics"
 	"github.com/bgp/stayrtr/ossec"
 	"github.com/bgp/stayrtr/prefixfile"
 	"github.com/bgp/stayrtr/utils"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -99,78 +99,13 @@ var (
 	LogVerbose = flag.Bool("log.verbose", true, "Additional debug logs (disable with -log.verbose=false)")
 	Version    = flag.Bool("version", false, "Print version")
 
-	NumberOfVRPs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_vrps",
-			Help: "Number of VRPs by source and status.",
-		},
-		[]string{"ip_version", "filtered", "path"},
-	)
-	NumberOfObjects = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_objects",
-			Help: "Number of RPKI objects (in cache) by type",
-		},
-		[]string{"type"},
-	)
-	LastRefresh = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_refresh",
-			Help: "Last successful request for the given URL.",
-		},
-		[]string{"path"},
-	)
-	LastChange = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rpki_change",
-			Help: "Last change.",
-		},
-		[]string{"path"},
-	)
-	RefreshStatusCode = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "refresh_requests_total",
-			Help: "Total number of HTTP requests by status code",
-		},
-		[]string{"path", "code"},
-	)
-	ClientsMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "rtr_clients",
-			Help: "Number of clients connected.",
-		},
-		[]string{"bind"},
-	)
-	PDUsRecv = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rtr_pdus",
-			Help: "PDU received.",
-		},
-		[]string{"type"},
-	)
-	CurrentSerial = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "rtr_serial",
-			Help: "Current serial.",
-		},
-	)
+	server_metrics = metrics.NewServerMetrics()
 
 	protoverToLib = map[int]uint8{
 		0: rtr.PROTOCOL_VERSION_0,
 		1: rtr.PROTOCOL_VERSION_1,
 	}
 )
-
-func initMetrics() {
-	prometheus.MustRegister(NumberOfObjects)
-	prometheus.MustRegister(NumberOfVRPs)
-	prometheus.MustRegister(LastChange)
-	prometheus.MustRegister(LastRefresh)
-	prometheus.MustRegister(RefreshStatusCode)
-	prometheus.MustRegister(ClientsMetric)
-	prometheus.MustRegister(PDUsRecv)
-	prometheus.MustRegister(CurrentSerial)
-}
 
 func serveHTTP(mux *http.ServeMux) {
 	srv := &http.Server{
@@ -435,7 +370,7 @@ func (s *state) applyUpdateFromNewState(vrps []rtr.VRP, brks []rtr.BgpsecKey,
 		log.Debugf("Sending notifications to clients")
 		s.server.NotifyClientsLatest()
 	}
-	CurrentSerial.Set(float64(serial))
+	server_metrics.CurrentSerial.Set(float64(serial))
 
 	s.lockJson.Lock()
 	s.exported = prefixfile.RPKIList{
@@ -473,10 +408,10 @@ func (s *state) updateFile(file string) (bool, error) {
 		return false, err
 	}
 	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
+		server_metrics.LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
 	}
 	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
+		server_metrics.RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
 	hsum := newSHA256(data)
@@ -508,10 +443,10 @@ func (s *state) updateSlurm(file string) (bool, error) {
 		return false, err
 	}
 	if lastrefresh {
-		LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
+		server_metrics.LastRefresh.WithLabelValues(file).Set(float64(s.lastts.UnixNano() / 1e9))
 	}
 	if code != -1 {
-		RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
+		server_metrics.RefreshStatusCode.WithLabelValues(file, fmt.Sprintf("%d", code)).Inc()
 	}
 
 	hsum := newSHA256(data)
@@ -706,15 +641,15 @@ type metricsEvent struct {
 }
 
 func (m *metricsEvent) ClientConnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
+	server_metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Inc()
 }
 
 func (m *metricsEvent) ClientDisconnected(c *rtr.Client) {
-	ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
+	server_metrics.ClientsMetric.WithLabelValues(c.GetLocalAddress().String()).Dec()
 }
 
 func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
-	PDUsRecv.WithLabelValues(
+	server_metrics.PDUsRecv.WithLabelValues(
 		strings.ToLower(
 			strings.Replace(
 				rtr.TypeToString(
@@ -724,15 +659,15 @@ func (m *metricsEvent) HandlePDU(c *rtr.Client, pdu rtr.PDU) {
 }
 
 func (m *metricsEvent) UpdateMetrics(numIPv4 int, numIPv6 int, numIPv4filtered int, numIPv6filtered int, changed time.Time, refreshed time.Time, file string, brkCount int) {
-	NumberOfObjects.WithLabelValues("bgpsec_pubkeys").Set(float64(brkCount))
-	NumberOfObjects.WithLabelValues("vrps").Set(float64(numIPv4 + numIPv6))
-	NumberOfObjects.WithLabelValues("effective_vrps").Set(float64(numIPv4filtered + numIPv6filtered))
+	server_metrics.NumberOfObjects.WithLabelValues("bgpsec_pubkeys").Set(float64(brkCount))
+	server_metrics.NumberOfObjects.WithLabelValues("vrps").Set(float64(numIPv4 + numIPv6))
+	server_metrics.NumberOfObjects.WithLabelValues("effective_vrps").Set(float64(numIPv4filtered + numIPv6filtered))
 
-	NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
-	NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
-	NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
-	NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
-	LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
+	server_metrics.NumberOfVRPs.WithLabelValues("ipv4", "filtered", file).Set(float64(numIPv4filtered))
+	server_metrics.NumberOfVRPs.WithLabelValues("ipv4", "unfiltered", file).Set(float64(numIPv4))
+	server_metrics.NumberOfVRPs.WithLabelValues("ipv6", "filtered", file).Set(float64(numIPv6filtered))
+	server_metrics.NumberOfVRPs.WithLabelValues("ipv6", "unfiltered", file).Set(float64(numIPv6))
+	server_metrics.LastChange.WithLabelValues(file).Set(float64(changed.UnixNano() / 1e9))
 }
 
 func main() {
@@ -784,7 +719,6 @@ func run() error {
 	var me *metricsEvent
 	var enableHTTP bool
 	if *MetricsAddr != "" {
-		initMetrics()
 		me = &metricsEvent{}
 		enableHTTP = true
 	}
