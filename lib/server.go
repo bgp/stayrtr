@@ -1106,6 +1106,10 @@ func (c *Client) SendData(sd SendableData) {
 			CustomerASNumber:  t.CustomerASN,
 			ProviderASNumbers: t.Providers,
 		}
+		//
+		if t.Flags == FLAG_REMOVED {
+			pdu.ProviderASNumbers = nil
+		}
 		c.SendPDU(pdu)
 	}
 }
