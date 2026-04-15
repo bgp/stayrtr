@@ -62,6 +62,10 @@ func TestSendResetQuery(t *testing.T) {
 		desc:    "Reset Query, Version 1",
 		version: 1,
 		want:    &PDUResetQuery{PROTOCOL_VERSION_1},
+	}, {
+		desc:    "Reset Query, Version 2",
+		version: 2,
+		want:    &PDUResetQuery{PROTOCOL_VERSION_2},
 	}}
 
 	for _, tc := range tests {
@@ -83,9 +87,13 @@ func TestSendSerialQuery(t *testing.T) {
 		version int
 		want    PDU
 	}{{
-		desc:    "Serial Query PDU",
+		desc:    "Serial Query PDU, Version 1",
 		version: 1,
 		want:    &PDUSerialQuery{PROTOCOL_VERSION_1, 123, 456},
+	}, {
+		desc:    "Serial Query PDU, Version 2",
+		version: 2,
+		want:    &PDUSerialQuery{PROTOCOL_VERSION_2, 123, 456},
 	}}
 
 	for _, tc := range tests {
@@ -123,6 +131,69 @@ func TestRouterKeyEncodeDecode(t *testing.T) {
 	decode := fmt.Sprintf("%#v", outputPdu)
 	if orig != decode {
 		t.Fatalf("%s\n is not\n%s", orig, decode)
+		t.FailNow()
+	}
+}
+
+func TestASPAEncodeDecode(t *testing.T) {
+	p := &PDUASPA{
+		Version:           1,
+		Flags:             1,
+		CustomerASNumber:  64497,
+		ProviderASNumbers: []uint32{64498, 64499},
+	}
+
+	buf := bytes.NewBuffer(nil)
+	p.Write(buf)
+
+	outputPdu, err := Decode(buf)
+
+	if err != nil {
+		t.FailNow()
+	}
+
+	orig := fmt.Sprintf("%#v", p)
+	decode := fmt.Sprintf("%#v", outputPdu)
+	if orig != decode {
+		t.Fatalf("%s\n is not\n%s", orig, decode)
+		t.FailNow()
+	}
+}
+
+func TestASPAProvider0(t *testing.T) {
+	p := &PDUASPA{
+		Version:           2,
+		Flags:             1,
+		CustomerASNumber:  64497,
+		ProviderASNumbers: []uint32{0, 64498},
+	}
+
+	buf := bytes.NewBuffer(nil)
+	p.Write(buf)
+
+	outputPdu, err := Decode(buf)
+
+	if err == nil {
+		t.Fatalf("PDU %s contains 0 and another ASN but no error raised\n", fmt.Sprintf("%#v", outputPdu))
+		t.FailNow()
+	}
+}
+
+func TestASPAUnsortedProviders(t *testing.T) {
+	p := &PDUASPA{
+		Version:           2,
+		Flags:             1,
+		CustomerASNumber:  64497,
+		ProviderASNumbers: []uint32{65000, 64498},
+	}
+
+	buf := bytes.NewBuffer(nil)
+	p.Write(buf)
+
+	outputPdu, err := Decode(buf)
+
+	if err == nil {
+		t.Fatalf("PDU %s is unsorted but no error raised\n", fmt.Sprintf("%#v", outputPdu))
 		t.FailNow()
 	}
 }

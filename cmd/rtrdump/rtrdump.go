@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -36,7 +37,7 @@ var (
 	Serial     = flag.Int("serial.value", 0, "Serial number")
 	Session    = flag.Int("session.id", 0, "Session ID")
 
-	FlagVersion = flag.Int("rtr.version", 1, "What RTR version you want to use, Version 1 is RFC8210")
+	FlagVersion = flag.Int("rtr.version", 2, "RTR version to use. Version 2 conforms to draft-ietf-sidrops-8210bis-25")
 
 	ConnType     = flag.String("type", "plain", "Type of connection: plain, tls or ssh")
 	ValidateCert = flag.Bool("tls.validate", true, "Validate TLS")
@@ -108,6 +109,23 @@ func (c *Client) HandlePDU(cs *rtr.ClientSession, pdu rtr.PDU) {
 			Ski:    skiHex,
 		}
 		c.Data.BgpSecKeys = append(c.Data.BgpSecKeys, rj)
+		c.Data.Metadata.CountBgpSecKeys++
+
+		if *LogDataPDU {
+			log.Debugf("Received: %v", pdu)
+		}
+
+	case *rtr.PDUASPA:
+		if c.Data.ASPA == nil {
+			c.Data.ASPA = make([]prefixfile.VAPJson, 0)
+		}
+		aj := prefixfile.VAPJson{
+			CustomerAsid: pdu.CustomerASNumber,
+			Providers:    pdu.ProviderASNumbers,
+		}
+
+		c.Data.ASPA = append(c.Data.ASPA, aj)
+		c.Data.Metadata.CountASPAs++
 
 		if *LogDataPDU {
 			log.Debugf("Received: %v", pdu)
@@ -149,11 +167,13 @@ func main() {
 	}
 
 	targetVersion := rtr.PROTOCOL_VERSION_0
-	if *FlagVersion > 1 {
-		log.Fatalf("Invalid RTR Version provided, the highest version this release supports is 1")
+	if *FlagVersion > 2 {
+		log.Fatalf("Invalid RTR Version provided, the highest version this release supports is 2")
 	}
 	if *FlagVersion == 1 {
 		targetVersion = rtr.PROTOCOL_VERSION_1
+	} else if *FlagVersion == 2 {
+		targetVersion = rtr.PROTOCOL_VERSION_2
 	}
 
 	lvl, _ := log.ParseLevel(*LogLevel)
@@ -225,6 +245,9 @@ func main() {
 	log.Infof("Connecting with %v to %v", *ConnType, *Connect)
 	err := clientSession.Start(*Connect, typeToId[*ConnType], configTLS, configSSH)
 	if err != nil {
+		if errors.Is(err, io.EOF) && targetVersion == rtr.PROTOCOL_VERSION_2 {
+			log.Warnf("EOF From remote side, This might be due to version 2 being requested, try using -rtr.version 1")
+		}
 		log.Fatal(err)
 	}
 

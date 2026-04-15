@@ -30,6 +30,12 @@
         "SKI": "XC7RBWu3661vfYmhXZwtUw==",
         "comment": "Key for ASN 64497 matching Router SKI"
       }
+    ],
+    "aspaFilters": [
+      {
+        "customer_asid": 64496,
+        "comment": "ASPAs matching Customer ASID"
+      }
     ]
   },
   "locallyAddedAssertions": {
@@ -52,6 +58,13 @@
         "comment": "My known key for my important ASN",
         "SKI": "NQYXZ0PgL2fdRscxGdVDa+fhAQY=",
         "routerPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhv5HEBGixUjKJTlenvcD1Axyi07rFdVY1KhN4vMPYy5y0Mx6zfaiEqJN27jK/l61xC36Vsaezd7eXAsZ1AEEsQ=="
+      }
+    ],
+    "aspaAssertions": [
+      {
+        "customer_asid": 64499,
+        "provider_set": [64497, 64498],
+        "comment": "Pretend 64497 and 64498 are upstream for 64496 in the IPv6 AFI"
       }
     ]
   }
