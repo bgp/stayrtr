@@ -20,6 +20,7 @@ import (
 const (
 	ENV_SSH_PASSWORD = "RTR_SSH_PASSWORD"
 	ENV_SSH_KEY      = "RTR_SSH_KEY"
+	ENV_TCP_MD5      = "RTR_TCP_MD5_PASSWORD"
 
 	METHOD_NONE = iota
 	METHOD_PASSWORD
@@ -40,6 +41,8 @@ var (
 
 	ConnType     = flag.String("type", "plain", "Type of connection: plain, tls or ssh")
 	ValidateCert = flag.Bool("tls.validate", true, "Validate TLS")
+
+	TCPMD5Password = flag.String("tcp.md5.password", "", fmt.Sprintf("TCP MD5 signature password for the plain-TCP connection, Linux only (if blank, will use envvar %v)", ENV_TCP_MD5))
 
 	ValidateSSH     = flag.Bool("ssh.validate", false, "Validate SSH key")
 	SSHServerKey    = flag.String("ssh.validate.key", "", "SSH server key SHA256 to validate")
@@ -159,9 +162,15 @@ func main() {
 	lvl, _ := log.ParseLevel(*LogLevel)
 	log.SetLevel(lvl)
 
+	tcpMD5Password := *TCPMD5Password
+	if tcpMD5Password == "" {
+		tcpMD5Password = os.Getenv(ENV_TCP_MD5)
+	}
+
 	cc := rtr.ClientConfiguration{
 		ProtocolVersion: uint8(targetVersion),
 		Log:             log.StandardLogger(),
+		TCPMD5Password:  tcpMD5Password,
 	}
 
 	client := &Client{
@@ -222,7 +231,11 @@ func main() {
 		log.Fatalf("Auth type %v unknown", *SSHAuth)
 	}
 
-	log.Infof("Connecting with %v to %v", *ConnType, *Connect)
+	if tcpMD5Password != "" {
+		log.Infof("Connecting with %v to %v (TCP MD5 signature enabled)", *ConnType, *Connect)
+	} else {
+		log.Infof("Connecting with %v to %v", *ConnType, *Connect)
+	}
 	err := clientSession.Start(*Connect, typeToId[*ConnType], configTLS, configSSH)
 	if err != nil {
 		log.Fatal(err)

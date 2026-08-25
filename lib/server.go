@@ -140,6 +140,7 @@ type Server struct {
 	enforceVersion bool
 	disableBGPSec  bool
 	enableNODELAY  bool
+	tcpMD5Password string
 
 	sdlock          *sync.RWMutex
 	sdListDiff      [][]SendableData
@@ -165,6 +166,10 @@ type ServerConfiguration struct {
 
 	DisableBGPSec bool
 	EnableNODELAY bool
+
+	// TCPMD5Password enables TCP MD5 signatures (RFC 2385) on the plain-TCP
+	// listener started by Start(). Linux only.
+	TCPMD5Password string
 
 	RefreshInterval uint32
 	RetryInterval   uint32
@@ -208,6 +213,7 @@ func NewServer(configuration ServerConfiguration, handler RTRServerEventHandler,
 
 		enforceVersion: configuration.EnforceVersion,
 		disableBGPSec:  configuration.DisableBGPSec,
+		tcpMD5Password: configuration.TCPMD5Password,
 
 		pduRefreshInterval: refreshInterval,
 		pduRetryInterval:   retryInterval,
@@ -493,9 +499,24 @@ func (s *Server) RequestNewVersion(c *Client, sessionId uint16, serial uint32) {
 }
 
 func (s *Server) Start(bind string) error {
-	tcplist, err := net.Listen("tcp", bind)
+	lc := net.ListenConfig{}
+	if s.tcpMD5Password != "" {
+		// MPTCP sockets don't support TCP_MD5SIG; Go prefers MPTCP by
+		// default when the kernel offers it, so opt back out here.
+		lc.SetMultipathTCP(false)
+	}
+	tcplist, err := lc.Listen(context.Background(), "tcp", bind)
 	if err != nil {
 		return err
+	}
+	if s.tcpMD5Password != "" {
+		tcpl, ok := tcplist.(*net.TCPListener)
+		if !ok {
+			return fmt.Errorf("TCP MD5 requested but listener is not a *net.TCPListener")
+		}
+		if err := enableTCPMD5(tcpl, s.tcpMD5Password); err != nil {
+			return fmt.Errorf("could not enable TCP MD5: %w", err)
+		}
 	}
 	return s.loopTCP(tcplist, "tcp", s.acceptClientTCP)
 }

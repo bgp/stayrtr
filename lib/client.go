@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"syscall"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -29,6 +30,8 @@ type ClientSession struct {
 
 	handler RTRClientSessionEventHandler
 
+	tcpMD5Password string
+
 	log Logger
 }
 
@@ -39,16 +42,21 @@ type ClientConfiguration struct {
 	RetryInterval   uint32
 	ExpireInterval  uint32
 
+	// TCPMD5Password enables TCP MD5 signatures (RFC 2385) on the plain-TCP
+	// connection started by StartPlain(). Linux only.
+	TCPMD5Password string
+
 	Log Logger
 }
 
 func NewClientSession(configuration ClientConfiguration, handler RTRClientSessionEventHandler) *ClientSession {
 	return &ClientSession{
-		version:   configuration.ProtocolVersion,
-		transmits: make(chan PDU, 256),
-		quit:      make(chan bool),
-		log:       configuration.Log,
-		handler:   handler,
+		version:        configuration.ProtocolVersion,
+		transmits:      make(chan PDU, 256),
+		quit:           make(chan bool),
+		log:            configuration.Log,
+		handler:        handler,
+		tcpMD5Password: configuration.TCPMD5Password,
 	}
 }
 
@@ -149,11 +157,16 @@ func (c *ClientSession) StartWithSSH(tcpconn *net.TCPConn, session *ssh.Session)
 }
 
 func (c *ClientSession) StartPlain(addr string) error {
-	addrTCP, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return err
+	d := net.Dialer{}
+	if c.tcpMD5Password != "" {
+		// MPTCP sockets don't support TCP_MD5SIG; Go prefers MPTCP by
+		// default when the kernel offers it, so opt back out here.
+		d.SetMultipathTCP(false)
+		d.Control = func(network, address string, rc syscall.RawConn) error {
+			return enableTCPMD5Dial(network, address, rc, c.tcpMD5Password)
+		}
 	}
-	tcpconn, err := net.DialTCP("tcp", nil, addrTCP)
+	tcpconn, err := d.Dial("tcp", addr)
 	if err != nil {
 		return err
 	}

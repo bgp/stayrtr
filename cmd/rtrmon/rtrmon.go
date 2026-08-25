@@ -33,6 +33,7 @@ import (
 const (
 	ENV_SSH_PASSWORD = "RTR_SSH_PASSWORD"
 	ENV_SSH_KEY      = "RTR_SSH_KEY"
+	ENV_TCP_MD5      = "RTR_TCP_MD5_PASSWORD"
 
 	METHOD_NONE = iota
 	METHOD_PASSWORD
@@ -65,6 +66,7 @@ var (
 	PrimarySSHAuthKey      = flag.String("primary.ssh.auth.key", "id_rsa", fmt.Sprintf("SSH key file (if blank, will use envvar %s_1)", ENV_SSH_KEY))
 	PrimaryRefresh         = flag.Duration("primary.refresh", time.Second*600, "Refresh interval")
 	PrimaryRTRBreak        = flag.Bool("primary.rtr.break", false, "Break RTR session at each interval")
+	PrimaryTCPMD5Password  = flag.String("primary.tcp.md5.password", "", fmt.Sprintf("TCP MD5 signature password for the plain-TCP connection, Linux only (if blank, will use envvar %s_1)", ENV_TCP_MD5))
 
 	SecondaryHost            = flag.String("secondary.host", "https://rpki.cloudflare.com/rpki.json", "secondary server")
 	SecondaryValidateCert    = flag.Bool("secondary.tls.validate", true, "Validate TLS")
@@ -76,6 +78,7 @@ var (
 	SecondarySSHAuthKey      = flag.String("secondary.ssh.auth.key", "id_rsa", fmt.Sprintf("SSH key file (if blank, will use envvar %s_2)", ENV_SSH_KEY))
 	SecondaryRefresh         = flag.Duration("secondary.refresh", time.Second*600, "Refresh interval")
 	SecondaryRTRBreak        = flag.Bool("secondary.rtr.break", false, "Break RTR session at each interval")
+	SecondaryTCPMD5Password  = flag.String("secondary.tcp.md5.password", "", fmt.Sprintf("TCP MD5 signature password for the plain-TCP connection, Linux only (if blank, will use envvar %s_2)", ENV_TCP_MD5))
 
 	LogLevel = flag.String("loglevel", "info", "Log level")
 	Version  = flag.Bool("version", false, "Print version")
@@ -212,6 +215,7 @@ type Client struct {
 	SSHAuthUser     string
 	SSHServerKey    string
 	SSHAuthPassword string
+	TCPMD5Password  string
 	BreakRTR        bool
 	authType        int
 	keyBytes        []byte
@@ -276,6 +280,7 @@ func (c *Client) Start(id int, ch chan int) {
 			cc := rtr.ClientConfiguration{
 				ProtocolVersion: rtr.PROTOCOL_VERSION_1,
 				Log:             log.StandardLogger(),
+				TCPMD5Password:  c.TCPMD5Password,
 			}
 
 			clientSession := rtr.NewClientSession(cc, c)
@@ -308,7 +313,11 @@ func (c *Client) Start(id int, ch chan int) {
 				configSSH.Auth = append(configSSH.Auth, ssh.PublicKeys(signer))
 			}
 
-			log.Infof("%d: Connecting with %v to %v", id, connType, rtrAddr)
+			if c.TCPMD5Password != "" {
+				log.Infof("%d: Connecting with %v to %v (TCP MD5 signature enabled)", id, connType, rtrAddr)
+			} else {
+				log.Infof("%d: Connecting with %v to %v", id, connType, rtrAddr)
+			}
 
 			c.qrtr = make(chan bool)
 			c.unlock = make(chan bool)
@@ -945,6 +954,7 @@ func main() {
 
 	c1.SSHAuthUser = *PrimarySSHAuthUser
 	c1.SSHAuthPassword = *PrimarySSHAuthPassword
+	c1.TCPMD5Password = *PrimaryTCPMD5Password
 	c1.Path = *PrimaryHost
 	c1.RefreshInterval = *PrimaryRefresh
 	c1.FetchConfig = fc
@@ -952,6 +962,9 @@ func main() {
 
 	if c1.SSHAuthPassword == "" {
 		c1.SSHAuthPassword = os.Getenv(fmt.Sprintf("%s_1", ENV_SSH_PASSWORD))
+	}
+	if c1.TCPMD5Password == "" {
+		c1.TCPMD5Password = os.Getenv(fmt.Sprintf("%s_1", ENV_TCP_MD5))
 	}
 
 	if c1.authType == METHOD_KEY {
@@ -977,6 +990,7 @@ func main() {
 
 	c2.SSHAuthUser = *SecondarySSHAuthUser
 	c2.SSHAuthPassword = *SecondarySSHAuthPassword
+	c2.TCPMD5Password = *SecondaryTCPMD5Password
 	c2.Path = *SecondaryHost
 	c2.RefreshInterval = *SecondaryRefresh
 	c2.FetchConfig = fc
@@ -984,6 +998,9 @@ func main() {
 
 	if method, ok := authToId[*SecondarySSHAuth]; ok && method == METHOD_KEY {
 		c2.SSHAuthPassword = os.Getenv(fmt.Sprintf("%s_2", ENV_SSH_PASSWORD))
+	}
+	if c2.TCPMD5Password == "" {
+		c2.TCPMD5Password = os.Getenv(fmt.Sprintf("%s_2", ENV_TCP_MD5))
 	}
 
 	if c2.authType == METHOD_KEY {

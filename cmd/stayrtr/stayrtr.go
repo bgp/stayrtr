@@ -34,6 +34,7 @@ const (
 	ENV_CACHE        = "STAYRTR_CACHE"
 	ENV_SSH_PASSWORD = "STAYRTR_SSH_PASSWORD"
 	ENV_SSH_KEY      = "STAYRTR_SSH_AUTHORIZEDKEYS"
+	ENV_TCP_MD5      = "STAYRTR_TCP_MD5_PASSWORD"
 
 	DEFAULT_CACHE = "https://console.rpki-client.org/rpki.json"
 
@@ -64,7 +65,8 @@ var (
 	DisableBGPSec  = flag.Bool("disable.bgpsec", false, "Disable sending out BGPSEC Router Keys")
 	EnableNODELAY  = flag.Bool("enable.nodelay", false, "Force enable TCP NODELAY (Likely increases CPU)")
 
-	Bind = flag.String("bind", ":8282", "Bind address")
+	Bind           = flag.String("bind", ":8282", "Bind address")
+	TCPMD5Password = flag.String("tcp.md5.password", "", fmt.Sprintf("TCP MD5 signature password for RTR sessions on -bind, Linux only (if blank, will use envvar %v)", ENV_TCP_MD5))
 
 	BindTLS = flag.String("tls.bind", "", "Bind address for TLS")
 	TLSCert = flag.String("tls.cert", "", "Certificate path")
@@ -701,6 +703,11 @@ func run() error {
 		Log: log.StandardLogger(),
 	}
 
+	tcpMD5Password := *TCPMD5Password
+	if tcpMD5Password == "" {
+		tcpMD5Password = os.Getenv(ENV_TCP_MD5)
+	}
+
 	sc := rtr.ServerConfiguration{
 		ProtocolVersion: protoverToLib[*RTRVersion],
 		KeepDifference:  3,
@@ -714,6 +721,7 @@ func run() error {
 		EnforceVersion: *EnforceVersion,
 		DisableBGPSec:  *DisableBGPSec,
 		EnableNODELAY:  *EnableNODELAY,
+		TCPMD5Password: tcpMD5Password,
 	}
 
 	var me *metricsEvent
@@ -820,6 +828,9 @@ func run() error {
 			sessid := server.GetSessionId(protoverToLib[*RTRVersion])
 			log.Infof("StayRTR Server started (sessionID:%d, refresh:%d, retry:%d, expire:%d)", sessid, sc.RefreshInterval, sc.RetryInterval, sc.ExpireInterval)
 			log.Infof("StayRTR Server v%s binding to %s", rtr.APP_VERSION, *Bind)
+			if tcpMD5Password != "" {
+				log.Infof("TCP MD5 signature enabled on %s", *Bind)
+			}
 			err := server.Start(*Bind)
 			if err != nil {
 				log.Fatal(err)
