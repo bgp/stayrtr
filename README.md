@@ -187,6 +187,16 @@ And to configure a bypass for every SSH key:
 $ ./stayrtr -ssh.bind :8282 -ssh.key private.pem -ssh.method.key=true -ssh.auth.key.bypass=true -bind ""
 ```
 
+### With TCP-MD5
+
+You can run StayRTR and listen on the TCP socket with optional MD5 authentication
+
+```bash
+$ ./stayrtr -bind :8282  -tcp.md5.password p4ssW0rd
+```
+
+If enabled MD5 is required for all clients. By default MD5 is not enabled on the TCP listen socket.
+
 ## Configure filters and overrides (SLURM)
 
 StayRTR supports SLURM configuration files ([RFC8416](https://tools.ietf.org/html/rfc8416)).
@@ -340,18 +350,18 @@ Make sure the refresh rate of StayRTR is more frequent than the refresh rate of 
 A simple comparison between software and devices.
 Implementations on versions may vary.
 
-| Device/software | Plaintext | TLS | SSH | Notes             |
-| --------------- | --------- | --- | --- | ----------------- |
-| RTRdump         | Yes       | Yes | Yes |                   |
-| RTRlib          | Yes       | No  | Yes | Only SSH key      |
-| Juniper         | Yes       | No  | No  |                   |
-| Cisco           | Yes       | No  | Yes | Only SSH password |
-| Nokia           | Yes       | No  | No  |                   |
-| Arista          | Yes       | No  | No  |                   |
-| FRRouting       | Yes       | No  | Yes | Only SSH key      |
-| Bird2           | Yes       | No  | Yes | Only SSH key      |
-| Quagga          | Yes       | No  | No  |                   |
-| OpenBGPD        | Yes       | No  | No  |                   |
+| Device/software | Plaintext | TLS | SSH | MD5 | Notes             |
+| --------------- | --------- | --- | --- | --- | ----------------- |
+| RTRdump         | Yes       | Yes | Yes | Yes |                   |
+| RTRlib          | Yes       | No  | Yes | Yes | Only SSH key      |
+| Juniper         | Yes       | No  | No  | No  |                   |
+| Cisco           | Yes       | No  | Yes | No  | Only SSH password |
+| Nokia           | Yes       | No  | No  | No  |                   |
+| Arista          | Yes       | No  | No  | No  |                   |
+| FRRouting       | Yes       | No  | Yes | No  | Only SSH key      |
+| Bird2           | Yes       | No  | Yes | Yes | Only SSH key      |
+| Quagga          | Yes       | No  | No  | No  |                   |
+| OpenBGPD        | Yes       | No  | No  | No  |                   |
 
 ### Configure on Juniper
 
@@ -666,6 +676,26 @@ Flags: B = Base instance session
        Static-V = Static-Valid; Static-I = Static-Invalid
 ===============================================================================
 ```
+
+### Configure on BIRD2
+
+```
+roa4 table ROA;
+
+protocol rpki rtr01 {
+        roa4 { table ROA; };
+        remote 10.10.0.10;
+        local address 203.0.113.1;
+        port 8282;
+        transport tcp {
+                authentication md5;
+                password "testing123";
+        };
+        max version 0;
+}
+```
+
+More detailed documentation can be found [here](https://bird.network.cz/?get_doc&v=20&f=bird.html#toc6.16)
 
 ## License
 
