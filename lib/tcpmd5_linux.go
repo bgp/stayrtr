@@ -68,8 +68,7 @@ func enableTCPMD5(l *net.TCPListener, password string) error {
 
 // enableTCPMD5Dial installs a TCP MD5 signature key (RFC 2385) scoped to the
 // exact peer being dialed, using network ("tcp4" or "tcp6", as resolved by
-// net.Dialer) to disambiguate the family. It must run from inside a
-// net.Dialer.Control callback, before connect() sends the SYN.
+// net.Dialer) to disambiguate the family.
 func enableTCPMD5Dial(network, address string, c syscall.RawConn, password string) error {
 	if len(password) > unix.TCP_MD5SIG_MAXKEYLEN {
 		return fmt.Errorf("TCP MD5 password too long: max %d bytes", unix.TCP_MD5SIG_MAXKEYLEN)
