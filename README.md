@@ -361,7 +361,7 @@ Implementations on versions may vary.
 | FRRouting       | Yes       | No  | Yes | No  | Only SSH key      |
 | Bird2           | Yes       | No  | Yes | Yes | Only SSH key      |
 | Quagga          | Yes       | No  | No  | No  |                   |
-| OpenBGPD        | Yes       | No  | No  | No  |                   |
+| OpenBGPD        | Yes       | No  | No  | Yes |                   |
 
 ### Configure on Juniper
 
