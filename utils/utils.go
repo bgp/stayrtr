@@ -48,7 +48,7 @@ func (e IdenticalEtag) Error() string {
 }
 
 func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
-	var f io.Reader
+	var f io.ReadCloser
 	var err error
 	if len(file) > 8 && (file[0:7] == "http://" || file[0:8] == "https://") {
 
@@ -135,11 +135,12 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 
 		newEtag := fhttp.Header.Get("ETag")
 
+		c.conditionalRequestLock.Lock()
 		if !c.EnableEtags || newEtag == "" || newEtag != c.etags[file] { // check lock here
-			c.conditionalRequestLock.Lock()
 			c.etags[file] = newEtag
 			c.conditionalRequestLock.Unlock()
 		} else {
+			c.conditionalRequestLock.Unlock()
 			return nil, fhttp.StatusCode, true, IdenticalEtag{
 				File: file,
 				Etag: newEtag,
@@ -165,6 +166,7 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 		}
 	}
 	data, err := io.ReadAll(f)
+	f.Close()
 	if err != nil {
 		return nil, -1, false, err
 	}

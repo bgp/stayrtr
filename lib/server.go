@@ -549,7 +549,23 @@ func (s *Server) acceptClientSSH(tcpconn net.Conn) error {
 	}
 
 	go func() {
+		/*
+			so technically speaking we will be double counting clients here
+			as the connection will also goes through the ClientConnected
+			function, however it is also probably quite important to make
+			sure that we are accounting for SSH clients that haven't actually
+			started a session yet as this could be a weird denial of service
+			type problem where clients just open connections and don't do
+			anything else, consuming resources all the same.
+
+			I guess a future TODO is to put a timeout/deadline on how long
+			a connection can stay up without asking for the RTR stream and
+			then hang up, this way we can avoid a slowloris style thing, and
+			remove this slightly silly accepted double counting bug
+		*/
+		s.clientlock.Lock()
 		s.connected++
+		s.clientlock.Unlock()
 		cont := true
 		for cont {
 			select {
@@ -601,8 +617,10 @@ func (s *Server) acceptClientSSH(tcpconn net.Conn) error {
 				}
 			}
 		}
-		s.connected--
 		tcpconn.Close()
+		s.clientlock.Lock()
+		s.connected--
+		s.clientlock.Unlock()
 	}()
 	return nil
 }
