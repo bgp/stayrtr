@@ -135,11 +135,12 @@ func (c *FetchConfig) FetchFile(file string) ([]byte, int, bool, error) {
 
 		newEtag := fhttp.Header.Get("ETag")
 
+		c.conditionalRequestLock.Lock()
 		if !c.EnableEtags || newEtag == "" || newEtag != c.etags[file] { // check lock here
-			c.conditionalRequestLock.Lock()
 			c.etags[file] = newEtag
 			c.conditionalRequestLock.Unlock()
 		} else {
+			c.conditionalRequestLock.Unlock()
 			return nil, fhttp.StatusCode, true, IdenticalEtag{
 				File: file,
 				Etag: newEtag,
