@@ -717,6 +717,7 @@ func run() error {
 		RefreshInterval: uint32(*RefreshRTR),
 		RetryInterval:   uint32(*RetryRTR),
 		ExpireInterval:  uint32(*ExpireRTR),
+		MaxConn:         *MaxConn,
 
 		EnforceVersion: *EnforceVersion,
 		DisableBGPSec:  *DisableBGPSec,
