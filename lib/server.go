@@ -629,10 +629,18 @@ func (s *Server) loopTCP(tcplist net.Listener, logEnv string, clientCallback Cli
 				s.log.Infof("Accepted %s connection from %v (%d/%d)", logEnv, tcpconn.RemoteAddr(), s.connected+1, s.maxconn)
 			}
 			if clientCallback != nil {
-				err := clientCallback(tcpconn)
-				if err != nil && s.log != nil {
-					s.log.Errorf("Error with %s client %v: %v", logEnv, tcpconn.RemoteAddr(), err)
-				}
+				// Must be async because some clientCallback's can take a long time (like SSH/TLS)
+				// and one client could otherwise hold up the acceptance of all connections of that
+				// type!
+				go func() {
+					err := clientCallback(tcpconn)
+					if err != nil && s.log != nil {
+						s.log.Errorf("Error with %s client %v: %v", logEnv, tcpconn.RemoteAddr(), err)
+					}
+				}()
+			} else {
+				// There shouldnt be a case where this ever happens, but cover all bases anyway
+				tcpconn.Close()
 			}
 		}
 	}
