@@ -598,6 +598,9 @@ func Decode(rdr io.Reader) (PDU, error) {
 			return nil, fmt.Errorf("wrong length for IPv4 Prefix PDU: %d != 12", len(toread))
 		}
 		prefixLen := int(toread[1])
+		if prefixLen > 33 {
+			return nil, fmt.Errorf("impossible IPv4 prefix length: %d > 32", prefixLen)
+		}
 		ip := toread[4:8]
 		addr, ok := netip.AddrFromSlice(ip)
 		if !ok {
@@ -616,6 +619,9 @@ func Decode(rdr io.Reader) (PDU, error) {
 			return nil, fmt.Errorf("wrong length for IPv6 Prefix PDU: %d != 24", len(toread))
 		}
 		prefixLen := int(toread[1])
+		if prefixLen > 129 {
+			return nil, fmt.Errorf("impossible IPv6 prefix length: %d > 129", prefixLen)
+		}
 		ip := toread[4:20]
 		addr, ok := netip.AddrFromSlice(ip)
 		if !ok {
