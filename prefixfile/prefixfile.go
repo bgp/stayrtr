@@ -2,6 +2,7 @@ package prefixfile
 
 import (
 	"fmt"
+	"math"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -65,6 +66,9 @@ func (vrp *VRPJson) GetASN2() (uint32, error) {
 	case uint32:
 		return asnc, nil
 	case float64:
+		if asnc > math.MaxUint32 {
+			return 0, fmt.Errorf("could not decode ASN: %v", vrp.ASN)
+		}
 		return uint32(asnc), nil
 	case int:
 		return uint32(asnc), nil
