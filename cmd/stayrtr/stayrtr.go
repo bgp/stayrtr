@@ -136,7 +136,7 @@ func decodeJSON(data []byte) (*prefixfile.RPKIList, error) {
 func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 	plen := prefix.Bits()
 	max := prefix.Addr().BitLen()
-	if plen == 0 || uint8(plen) > maxLength || maxLength > uint8(max) {
+	if uint8(plen) > maxLength || maxLength > uint8(max) {
 		log.Errorf("%s Maxlength wrong: %d - %d", prefix, plen, maxLength)
 		return false
 	}

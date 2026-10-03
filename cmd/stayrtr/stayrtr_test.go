@@ -133,6 +133,68 @@ func TestProcessData(t *testing.T) {
 	}
 }
 
+func TestProcessDataAcceptsDefaultRouteVRPs(t *testing.T) {
+	stuff := []prefixfile.VRPJson{
+		{
+			Prefix: "0.0.0.0/0",
+			Length: 0,
+			ASN:    65000,
+			TA:     "testrir",
+		},
+		{
+			Prefix: "0.0.0.0/0",
+			Length: 32,
+			ASN:    65001,
+			TA:     "testrir",
+		},
+		{
+			Prefix: "::/0",
+			Length: 0,
+			ASN:    65002,
+			TA:     "testrir",
+		},
+		{
+			Prefix: "::/0",
+			Length: 128,
+			ASN:    65003,
+			TA:     "testrir",
+		},
+		{
+			Prefix: "0.0.0.0/0",
+			Length: 33,
+			ASN:    65004,
+			TA:     "testrir",
+		},
+		{
+			Prefix: "::/0",
+			Length: 129,
+			ASN:    65005,
+			TA:     "testrir",
+		},
+	}
+
+	got, _, v4count, v6count := processData(stuff, nil)
+	if v4count != 2 || v6count != 2 {
+		t.Fatalf("Wanted v4count = 2, v6count = 2, but got %d, %d", v4count, v6count)
+	}
+
+	gotByKey := make(map[string]struct{}, len(got))
+	for _, vrp := range got {
+		gotByKey[fmt.Sprintf("%s,%d,%d", vrp.Prefix, vrp.MaxLen, vrp.ASN)] = struct{}{}
+	}
+
+	wantByKey := map[string]struct{}{
+		"0.0.0.0/0,0,65000":  {},
+		"0.0.0.0/0,32,65001": {},
+		"::/0,0,65002":       {},
+		"::/0,128,65003":     {},
+	}
+
+	if !cmp.Equal(gotByKey, wantByKey) {
+		t.Errorf("Want (%+v), Got (%+v)", wantByKey, gotByKey)
+	}
+}
+
 func BenchmarkDecodeJSON(b *testing.B) {
 	json, err := os.ReadFile("test.rpki.json")
 	if err != nil {
