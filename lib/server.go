@@ -381,7 +381,7 @@ func (s *Server) AddData(new []SendableData) bool {
 
 func (s *Server) AddSDsDiff(diff []SendableData) {
 	s.sdlock.RLock()
-	nextDiff := make([][]SendableData, len(s.sdListDiff)+1)
+	nextDiff := make([][]SendableData, len(s.sdListDiff))
 	for i, prevSDs := range s.sdListDiff {
 		nextDiff[i] = ApplyDiff(diff, prevSDs)
 	}
