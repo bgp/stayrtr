@@ -24,6 +24,24 @@ func GenerateVrps(size uint32, offset uint32) []SendableData {
 	return vrps
 }
 
+func singleTestVRP(prefix string, asn uint32) []SendableData {
+	parsed := netip.MustParsePrefix(prefix)
+	return []SendableData{&VRP{
+		Prefix: parsed,
+		MaxLen: uint8(parsed.Bits()),
+		ASN:    asn,
+		Flags:  FLAG_ADDED,
+	}}
+}
+
+func hashKeys(sds []SendableData) []string {
+	keys := make([]string, 0, len(sds))
+	for _, sd := range sds {
+		keys = append(keys, sd.HashKey())
+	}
+	return keys
+}
+
 func BaseBench(base int, multiplier int) {
 	benchSize1 := base * multiplier
 	newVrps := GenerateVrps(uint32(benchSize1), uint32(0))
@@ -175,6 +193,36 @@ func TestApplyDiff(t *testing.T) {
 	assert.Equal(t, vrps[4].(*VRP).GetFlag(), uint8(FLAG_REMOVED))
 	assert.Equal(t, vrps[5].(*VRP).ASN, uint32(65007))
 	assert.Equal(t, vrps[5].(*VRP).GetFlag(), uint8(FLAG_ADDED))
+}
+
+func TestRetainedDiffsMatchSerialDistance(t *testing.T) {
+	server := NewServer(ServerConfiguration{KeepDifference: 3}, nil, nil)
+
+	generations := [][]SendableData{
+		singleTestVRP("10.0.0.0/24", 65000),
+		singleTestVRP("10.0.1.0/24", 65001),
+		singleTestVRP("10.0.2.0/24", 65002),
+		singleTestVRP("10.0.3.0/24", 65003),
+		singleTestVRP("10.0.4.0/24", 65004),
+	}
+	for _, generation := range generations {
+		assert.True(t, server.AddData(generation))
+	}
+
+	serial, valid := server.GetCurrentSerial()
+	assert.True(t, valid)
+	assert.Equal(t, uint32(4), serial)
+
+	for querySerial := uint32(1); querySerial <= 3; querySerial++ {
+		diff, exists := server.GetSDsSerialDiff(querySerial)
+		assert.True(t, exists)
+
+		got := ApplyDiff(diff, generations[querySerial])
+		assert.Equal(t, []string{generations[4][0].HashKey()}, hashKeys(got))
+	}
+
+	_, exists := server.GetSDsSerialDiff(0)
+	assert.False(t, exists)
 }
 
 func TestComputeDiffBGPSEC(t *testing.T) {
