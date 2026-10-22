@@ -151,16 +151,14 @@ func isValidPrefixLength(prefix netip.Prefix, maxLength uint8) bool {
 // Will return a deduped slice, as well as total VRPs, IPv4 VRPs, IPv6 VRPs and BGPsec Keys
 func processData(vrplistjson []prefixfile.VRPJson,
 	brklistjson []prefixfile.BgpSecKeyJson) /*Export*/ ([]rtr.VRP, []rtr.BgpsecKey, int, int) {
-	filterDuplicates := make(map[string]struct{})
-
 	// It may be tempting to change this to a simple time.Since() but that will
 	// grab the current time every time it's invoked, time calls can be slow on
 	// some platforms, so lets just get the unix time when we start and use that
 	// to compare it all
 	NowUnix := time.Now().Unix()
 
-	var vrplist []rtr.VRP
-	var brklist = make([]rtr.BgpsecKey, 0)
+	vrplist := make([]rtr.VRP, 0, len(vrplistjson))
+	brklist := make([]rtr.BgpsecKey, 0, len(brklistjson))
 	var countv4 int
 	var countv6 int
 
@@ -194,13 +192,6 @@ func processData(vrplistjson []prefixfile.VRPJson,
 			countv6++
 		}
 
-		key := fmt.Sprintf("%s,%d,%d", prefix, asn, v.Length)
-		_, exists := filterDuplicates[key]
-		if exists {
-			continue
-		}
-		filterDuplicates[key] = struct{}{}
-
 		vrp := rtr.VRP{
 			Prefix: prefix,
 			ASN:    asn,
@@ -230,15 +221,31 @@ func processData(vrplistjson []prefixfile.VRPJson,
 				sub-prefix P1 before the covering prefix P0.
 		*/
 
-		if vrplist[i].Prefix.Bits() == vrplist[j].Prefix.Bits() {
-			if vrplist[i].MaxLen != vrplist[j].MaxLen {
-				return vrplist[i].MaxLen > vrplist[j].MaxLen
-			}
-			return vrplist[i].Prefix.Addr().Compare(vrplist[j].Prefix.Addr()) < 1
-		} else {
+		if vrplist[i].Prefix.Bits() != vrplist[j].Prefix.Bits() {
 			return vrplist[i].Prefix.Bits() > vrplist[j].Prefix.Bits()
 		}
+		if vrplist[i].MaxLen != vrplist[j].MaxLen {
+			return vrplist[i].MaxLen > vrplist[j].MaxLen
+		}
+		if addressOrder := vrplist[i].Prefix.Addr().Compare(vrplist[j].Prefix.Addr()); addressOrder != 0 {
+			return addressOrder < 0
+		}
+		return vrplist[i].ASN < vrplist[j].ASN
 	})
+
+	// Sorting places identical VRPs next to one another, so they can be
+	// removed in place without retaining a second million-entry hash map.
+	unique := 0
+	for i := range vrplist {
+		if unique > 0 && vrplist[i].Prefix == vrplist[unique-1].Prefix &&
+			vrplist[i].MaxLen == vrplist[unique-1].MaxLen &&
+			vrplist[i].ASN == vrplist[unique-1].ASN {
+			continue
+		}
+		vrplist[unique] = vrplist[i]
+		unique++
+	}
+	vrplist = vrplist[:unique]
 
 	for _, v := range brklistjson {
 		if v.Expires != nil {

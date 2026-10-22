@@ -133,6 +133,27 @@ func TestProcessData(t *testing.T) {
 	}
 }
 
+func TestProcessDataDeduplicatesWithoutDroppingOtherASNs(t *testing.T) {
+	input := []prefixfile.VRPJson{
+		{Prefix: "192.0.2.0/24", Length: 24, ASN: 64497},
+		{Prefix: "192.0.2.0/24", Length: 24, ASN: 64496},
+		{Prefix: "192.0.2.0/24", Length: 24, ASN: 64497},
+	}
+
+	got, _, v4count, v6count := processData(input, nil)
+	want := []rtr.VRP{
+		{Prefix: netip.MustParsePrefix("192.0.2.0/24"), MaxLen: 24, ASN: 64496},
+		{Prefix: netip.MustParsePrefix("192.0.2.0/24"), MaxLen: 24, ASN: 64497},
+	}
+
+	if diff := cmp.Diff(want, got, cmp.Comparer(func(x, y netip.Prefix) bool { return x == y })); diff != "" {
+		t.Fatalf("unexpected VRPs (-want +got):\n%s", diff)
+	}
+	if v4count != 3 || v6count != 0 {
+		t.Fatalf("got input counts v4=%d v6=%d, want v4=3 v6=0", v4count, v6count)
+	}
+}
+
 func BenchmarkDecodeJSON(b *testing.B) {
 	json, err := os.ReadFile("test.rpki.json")
 	if err != nil {
