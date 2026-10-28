@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/netip"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
@@ -756,18 +755,14 @@ func (c *Client) checkVersion(newversion uint8) error {
 		if c.log != nil {
 			c.log.Debugf("%v: has bad version (received: v%v, current: v%v) error", c.String(), newversion, c.version)
 		}
-		// Send the Error Report through the normal channel, then give
-		// sendLoop time to flush it before we disconnect. The error
-		// report must use the server's highest supported version so the
+		// Send the Error Report through the normal channel; sendLoop
+		// writes it before returning on disconnect. The error report
+		// must use the server's highest supported version so the
 		// client knows what to downgrade to (RFC 8210 §7).
 		if !c.versionset {
 			c.SetVersion(PROTOCOL_VERSION_1)
 		}
 		c.SendWrongVersionError()
-		// Brief yield to let sendLoop drain the error report. Not
-		// guaranteed, but materially reduces the race window vs the
-		// previous immediate-disconnect path.
-		time.Sleep(50 * time.Millisecond)
 		c.Disconnect()
 		return fmt.Errorf("%v: has bad version (received: v%v, current: v%v)", c.String(), newversion, c.version)
 	}
@@ -793,7 +788,16 @@ func (c *Client) sendLoop(ctx context.Context) error {
 		case pdu := <-c.transmits:
 			c.wr.Write(pdu.Bytes())
 		case <-ctx.Done():
-			return ctx.Err()
+			// Write what was queued before the disconnect, such as an
+			// Error Report, so it reaches the client before the close.
+			for {
+				select {
+				case pdu := <-c.transmits:
+					c.wr.Write(pdu.Bytes())
+				default:
+					return ctx.Err()
+				}
+			}
 		}
 	}
 }
@@ -842,7 +846,6 @@ func (c *Client) readLoop(ctx context.Context) error {
 					// (set at connection accept time), so SendWrongVersionError
 					// stamps the correct version for the client to downgrade to.
 					c.SendWrongVersionError()
-					time.Sleep(50 * time.Millisecond)
 					c.Disconnect()
 					return fmt.Errorf("%s: bad version error", c.String())
 				}
